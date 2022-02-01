@@ -3,13 +3,6 @@ import pandas as pd
 FISHER_COMBINATIONS = ['abcd', 'acbd', 'badc', 'bdac', 'cadb', 'cdab', 'dbca', 'dcba']
 
 
-def contingency_id(a: int, b: int, c: int, d: int) -> str:
-    """
-    Turn contingency table into string
-    """
-    return f'{a},{b},{c},{d}'
-
-
 def fisher_id(a: int, b: int, c: int, d: int) -> (int, int, int, int):
     """
     Eight contingency tables always give the same pvalue: ['abcd', 'acbd', 'badc', 'bdac', 'cadb', 'cdab', 'dbca', 'dcba']

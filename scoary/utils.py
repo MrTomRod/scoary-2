@@ -1,4 +1,5 @@
 import pandas as pd
+
 from math import inf, nan, isinf, isnan, isclose
 
 ALLOWED_CORRECTIONS = {'bonferroni', 'sidak', 'holm-sidak', 'holm', 'simes-hochberg', 'hommel', 'fdr_bh', 'fdr_by', 'fdr_tsbh', 'fdr_tsbky'}
@@ -27,4 +28,3 @@ def get_label_to_trait(trait: pd.Series) -> {str: bool}:
 def get_all_label_to_gene(genes_df: pd.DataFrame) -> pd.DataFrame:
     assert not genes_df.isna().values.any(), 'genes_df contains NaN'
     return genes_df.T.applymap(bool).to_dict()
-

@@ -6,14 +6,6 @@ from scoary.scoary import *
 
 from scoary.ScoaryTree import *
 
-from fast_fisher import odds_ratio
-
-"""
-todo:
-- agreement between scoary 1
-- max_supporting and best_picking do the same atm!
-"""
-
 
 class TestTreeFunctions(TestCase):
     def test_tree_from_list_to_list(self):
@@ -36,6 +28,7 @@ class TestTreeFunctions(TestCase):
         list_tree = scoary_tree.to_list()
         # compare to Scoary 1
         expected_result = get_json('tetracycline', 'treelist')['as_list']
+
         self.assertTrue(is_equivalent_tree(expected_result, list_tree))
 
     def test_tree_from_newick_to_newick(self):
@@ -63,6 +56,16 @@ class TestTreeFunctions(TestCase):
         self.assertEqual(2, max_comparisons, msg='best picking of pairs failed')
         self.assertEqual(2, max_supporting, msg='best picking of pairs failed')
         self.assertEqual(0, max_opposing, msg='worst picking of pairs failed')
+
+    def test_prune(self):
+        scoary_tree = ScoaryTree.from_list(
+            [[[[[[['1', '2'], ['3', '4']], '5'], '6'], '7'], '8'],
+             [[[[['9', [['10', '11'], '12']], '13'], '14'], '15'], [['16', '17'], [['18', ['19', '20']], '21']]]]
+        )
+        prune_labels = ['1', '2', '3', '18', '19', '20']
+        pruned_tree = scoary_tree.prune(labels=prune_labels)
+        real_labels = pruned_tree.labels()
+        self.assertEqual(real_labels, prune_labels)
 
     def test_pairs_paper(self):
         scoary_tree = ScoaryTree.from_list(
@@ -157,8 +160,6 @@ class TestTreeFunctions(TestCase):
 
             label_to_gene = genes_df.loc[gene].apply(bool).to_dict()
             if old_odds_ratio < 1:
-                # only look at positive associations
-                continue
                 # invert gene depending on odds_ratio
                 label_to_gene = {l: not g for l, g in label_to_gene.items()}
                 inverted = True

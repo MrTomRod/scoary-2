@@ -11,7 +11,7 @@ from unittest import TestCase
 import logging
 
 logging.basicConfig()
-logging.getLogger().setLevel(logging.INFO)
+# logging.getLogger().setLevel(logging.INFO)
 
 ROOT = dirname(dirname(__file__))
 
@@ -73,8 +73,11 @@ def is_equivalent_tree(a, b) -> bool:
     if type(a) is str or type(b) is str:
         return a == b
     else:
-        return (is_equivalent_tree(a[0], b[0]) and is_equivalent_tree(a[1], b[1])) or (
-                is_equivalent_tree(a[0], b[1]) and is_equivalent_tree(a[1], b[0]))
+        return (
+                       is_equivalent_tree(a[0], b[0]) and is_equivalent_tree(a[1], b[1])
+               ) or (
+                       is_equivalent_tree(a[0], b[1]) and is_equivalent_tree(a[1], b[0])
+               )
 
 
 def print_tree_for_debugging(scoary_tree, label_to_gene, label_to_trait):

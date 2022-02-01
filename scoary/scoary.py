@@ -1,16 +1,27 @@
+import random
 from collections import defaultdict
+
+from numba import njit, prange
 from statsmodels.stats.multitest import multipletests
 from scipy.stats import binom_test
+import numpy as np
 
 import logging
 
 logger = logging.getLogger('scoary')
 
-from fast_fisher.fast_fisher_compiled import odds_ratio, test1t as fisher_exact_two_tailed
-
 from .utils import *
-from .fisher_utils import fisher_id, contingency_id
-from .ScoaryTree import ScoaryTree, count_max_pairings
+from .fast_fisher_numba import odds_ratio, test1t as fisher_exact_two_tailed, fisher_id
+from .ScoaryTree import *
+
+from pandas._libs.parsers import STR_NA_VALUES
+
+STR_NA_VALUES.update(['-', '.'])
+
+from multiprocessing import Process, Manager
+
+_manager = Manager()
+CONFINT_CACHE = _manager.dict()
 
 
 def scoary(
@@ -22,7 +33,7 @@ def scoary(
         newicktree: str = None,
         no_pairwise: bool = False,
         outdir: str = './',
-        permute: bool = False,
+        n_permut: int = 0,
         native_cutoff: float = 0.05,
         restrict_to: str = None,
         threads: int = None,
@@ -31,6 +42,8 @@ def scoary(
         citation: bool = False,
 ):
     multiple_testing_method, multiple_testing_cutoff = parse_correction(multiple_testing)
+
+    assert n_permut == 0 or n_permut >= 100, f'{n_permut=} must be at least 100.'
 
     # load data
     genes_df = load_genes(genes, delimiter, start_col)
@@ -44,16 +57,41 @@ def scoary(
         with open(newicktree) as f:
             tree = ScoaryTree.from_newick(f.read())
 
+    all_labels = set(tree.labels())
+
     for trait in traits_df:
         print(trait)
         label_to_trait = get_label_to_trait(traits_df[trait])
+
+        if all_labels == set(label_to_trait):
+            pruned_tree = tree
+        else:
+            pruned_tree = tree.prune(labels=label_to_trait)
+
         result_df = init_result_df(genes_df, label_to_trait)
         test_df = create_test_df(result_df)
         test_df = add_odds_ratio(test_df)
         test_df = perform_multiple_testing_correction(test_df, native_cutoff, multiple_testing_method, multiple_testing_cutoff)
+
+        if len(test_df) == 0:
+            print(f'found 0 genes for {trait=}')
+            continue
+
         result_df = pd.merge(test_df, result_df, how="left", on='__contingency_table__', copy=False)  # copy=False for performance
-        result_df = compute_pairs(result_df, all_label_to_gene, tree=tree, label_to_trait=label_to_trait)
-        print(result_df)
+        result_df = compute_pairs(result_df, all_label_to_gene, tree=pruned_tree, label_to_trait=label_to_trait)
+
+        if n_permut:
+            conf_int = calculate_confidence_interval(genes_df, label_to_trait, n_permut=n_permut)
+            assert len(conf_int) == n_permut
+            result_df['pval_empirical'] = result_df['pval'].apply(lambda p: np.sum(conf_int <= p) / n_permut)
+
+        result_df = result_df[[
+            col for col in
+            ('Gene', 'c1r1', 'c2r1', 'c1r2', 'c2r2', 'sensitivity', 'specificity', 'odds_ratio', 'pval', 'qval', 'pval_empirical',
+             'contrasting', 'supporting', 'opposing', 'best', 'worst')
+            if col in result_df.columns
+        ]]
+        print(result_df.to_string())
 
 
 def load_genes(genes: str, delimiter: str, start_col: int) -> pd.DataFrame:
@@ -92,7 +130,7 @@ def load_traits(traits, delimiter) -> pd.DataFrame:
     """
     dtypes = defaultdict(lambda: int)
     dtypes["index_column"] = str
-    traits_df = pd.read_csv(traits, delimiter=delimiter, index_col=0, dtype=dtypes)
+    traits_df = pd.read_csv(traits, delimiter=delimiter, index_col=0, dtype=dtypes, na_values=STR_NA_VALUES)
     assert traits_df.columns.is_unique, f'{traits=}: columns are not unique'
     assert traits_df.index.is_unique, f'{traits=}: index not unique'
     n_nan = int(traits_df.isna().sum().sum())
@@ -111,8 +149,8 @@ def init_result_df(genes_df: pd.DataFrame, label_to_trait: dict[str:bool]) -> pd
     :return: result_df (DataFrame); columns: ['c1r1', 'c2r1', 'c1r2', 'c2r2', '__contingency_table__]; index: strains
     """
     # Preparation
-    trait_pos = [l for l, t in label_to_trait.items() if t]
-    trait_neg = [l for l, t in label_to_trait.items() if not t]
+    trait_pos = [l for l, t in label_to_trait.items() if t is True]
+    trait_neg = [l for l, t in label_to_trait.items() if t is False]
     n_pos = len(trait_pos)
     n_neg = len(trait_neg)
     n_tot = n_pos + n_neg
@@ -128,19 +166,27 @@ def init_result_df(genes_df: pd.DataFrame, label_to_trait: dict[str:bool]) -> pd
     gene_sum = result_df['c1r1'] + result_df['c2r1']
     result_df = result_df[(gene_sum != 0) & (gene_sum != n_tot)]
 
-    # add contingency table as row
-    result_df['__contingency_table__'] = result_df.apply(
-        func=lambda row: tuple([row['c1r1'], row['c2r1'], row['c1r2'], row['c2r2']]),
-        axis=1
-    )
+    # Add contingency table, sensitivity and specificity
+    sensitivity_fn = (lambda row: row['c1r1'] / n_pos * 100) if trait_pos else (lambda row: 0.)
+    specificity_fn = (lambda row: row['c2r2'] / n_neg * 100) if trait_neg else (lambda row: 0.)
 
-    # reset index so that Gene is it's own column
+    def add_cols(row: pd.Series):
+        return (
+            tuple([row['c1r1'], row['c2r1'], row['c1r2'], row['c2r2']]),  # contingency table
+            sensitivity_fn(row),
+            specificity_fn(row),
+        )
+
+    result_df[['__contingency_table__', 'sensitivity', 'specificity']] = result_df.apply(
+        func=add_cols, axis=1, result_type='expand')
+
+    # Reset index so that Gene is its own column
     result_df.reset_index(inplace=True)
 
     return result_df
 
 
-def create_test_df(result_df: pd.DataFrame) -> pd.DataFrame:
+def create_test_df(result_df: pd.DataFrame, sort=True) -> pd.DataFrame:
     """
     Create test_df with index=__contingency_id__ and columns=[pval]
 
@@ -166,8 +212,9 @@ def create_test_df(result_df: pd.DataFrame) -> pd.DataFrame:
     # remove fisher_identifier
     test_df.drop('__fisher_unique_table__', axis=1, inplace=True)
 
-    # sort test_df by pval
-    test_df.sort_values(by='pval', inplace=True)
+    if sort:
+        # sort test_df by pval
+        test_df.sort_values(by='pval', inplace=True)
 
     return test_df
 
@@ -193,8 +240,11 @@ def perform_multiple_testing_correction(test_df: pd.DataFrame, native_cutoff: fl
     return test_df
 
 
-def compute_pairs(result_df, all_label_to_gene, tree: ScoaryTree, label_to_trait: {str: bool}) -> pd.DataFrame:
+def compute_pairs(result_df: pd.DataFrame, all_label_to_gene, tree: ScoaryTree, label_to_trait: {str: bool}) -> pd.DataFrame:
     """
+    Required rows:
+    - Gene
+
     Add columns:
     - Max_Pairwise_comparisons
     - Max_supporting_pairs
@@ -210,18 +260,101 @@ def compute_pairs(result_df, all_label_to_gene, tree: ScoaryTree, label_to_trait
             label_to_gene = {l: not g for l, g in all_label_to_gene[row.Gene].items()}
 
         contrasting = count_max_pairings(tree, label_to_trait, label_to_gene, type='contrasting')
-        supporting = count_max_pairings(tree, label_to_trait, label_to_gene, type='supporting')
-        opposing = count_max_pairings(tree, label_to_trait, label_to_gene, type='opposing')
+        # supporting = count_max_pairings(tree, label_to_trait, label_to_gene, type='supporting')
+        # opposing = count_max_pairings(tree, label_to_trait, label_to_gene, type='opposing')
+        # supporting, opposing = count_sup_op(tree, label_to_trait, label_to_gene)
+        supporting, opposing = count_best_worst(tree, label_to_trait, label_to_gene)
 
         best = binom_test(x=supporting, n=contrasting)
-        worst = binom_test(x=contrasting - supporting, n=contrasting)
-        best, worst = sorted([best, worst])
+        worst = binom_test(x=contrasting - opposing, n=contrasting)
+        if worst < best:
+            best, worst = worst, best
 
         return contrasting, supporting, opposing, best, worst
 
-    result_df[['contrasting', 'supporting', 'opposing', 'best', 'worst']] = result_df.apply(func=func, axis=1, result_type='expand')
+    result_df[['contrasting', 'supporting', 'opposing', 'best', 'worst']] = pd.DataFrame(
+        result_df.apply(func=func, axis=1).tolist()  # autodetect dtype
+    )
 
     return result_df
+
+
+@njit(parallel=True)
+def fisher_min_pval(test_df):
+    min_pval = 1
+
+    for i in prange(test_df.shape[0]):
+        a, b, c, d = test_df[i][0], test_df[i][1], test_df[i][2], test_df[i][3]
+
+        pval = fisher_exact_two_tailed(a, b, c, d)
+
+        if pval < min_pval:
+            min_pval = pval
+
+    return min_pval
+
+
+def find_min_pval(result_df, n_pos, n_neg):
+    test_df = np.unique(result_df[['c1r1', 'c2r1', 'c1r2', 'c2r2']].to_numpy(), axis=0).astype(np.longlong)
+    min_pval = fisher_min_pval(test_df)
+    return min_pval
+
+
+def minit_result_df(genes_df: pd.DataFrame, trait_pos, trait_neg, n_tot) -> pd.DataFrame:
+    # create result_df
+    result_df = pd.DataFrame(index=genes_df.index)
+    result_df['c1r1'] = genes_df[trait_pos].sum(axis=1)  # trait positive gene positive
+    result_df['c2r1'] = genes_df[trait_neg].sum(axis=1)  # trait negative gene positive
+    result_df['c1r2'] = len(trait_pos) - result_df['c1r1']  # trait positive gene negative
+    result_df['c2r2'] = len(trait_neg) - result_df['c2r1']  # trait negative gene negative
+
+    # remove genes that are shared by none or all
+    gene_sum = result_df['c1r1'] + result_df['c2r1']
+    result_df = result_df[(gene_sum != 0) & (gene_sum != n_tot)]
+    return result_df
+
+
+def calculate_confidence_interval(genes_df: pd.DataFrame, label_to_trait: dict[str:bool], n_permut: int) -> np.array:
+    # Preparation
+    trait_pos = [l for l, t in label_to_trait.items() if t is True]
+    trait_neg = [l for l, t in label_to_trait.items() if t is False]
+    n_pos = len(trait_pos)
+    n_neg = len(trait_neg)
+
+    if (n_pos, n_neg) in CONFINT_CACHE:
+        return CONFINT_CACHE[(n_pos, n_neg)]
+
+    # filtered_genes_df = genes_df[trait_pos + trait_neg].to_numpy()
+
+    labels = list(genes_df.columns)
+    n_tot = n_pos + n_neg
+    assert n_tot <= len(labels)
+
+    with Manager() as manager:
+        shared_list = manager.list()
+
+        def permute(proc_id, shared_list) -> None:
+            permuted_labels = labels.copy()
+            random.shuffle(permuted_labels)
+
+            trait_pos = permuted_labels[:n_pos]
+            trait_neg = permuted_labels[n_neg:]
+
+            result_df = minit_result_df(genes_df, trait_pos, trait_neg, n_tot)
+            min_pval = find_min_pval(result_df, n_pos, n_neg)
+
+            shared_list.append(min_pval)
+
+        processes = [Process(target=permute, args=(i, shared_list)) for i in range(n_permut)]
+        for p in processes:
+            p.start()
+        for p in processes:
+            p.join()
+
+        result_list = np.array(shared_list)
+
+    CONFINT_CACHE[(n_pos, n_neg)] = result_list
+    return result_list
 
 
 if __name__ == '__main__':

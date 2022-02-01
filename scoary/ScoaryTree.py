@@ -3,13 +3,14 @@ from __future__ import annotations
 import logging
 from typing import Union, Optional, Callable
 
+from numba import njit, prange
+
 import pandas as pd
 from scipy.spatial import distance
 
-from biotite.sequence.phylo import upgma
-from biotite.sequence.phylo.tree import TreeNode as BiotiteTreeNode
+from .upgma import upgma
 
-from ete3 import Tree as EteTree
+from .newick import parse_newick
 
 logger = logging.getLogger('scoary-tree')
 
@@ -69,6 +70,33 @@ class ScoaryTree:
     #     else:
     #         return ScoaryTree(left=copy(self.left), right=copy(self.right))
 
+    def prune(self, labels: [str]) -> ScoaryTree:
+        n_labels_found = 0
+
+        def prune(scoary_tree: ScoaryTree) -> Optional[ScoaryTree]:
+            if scoary_tree.is_leaf:
+                if scoary_tree.label in labels:
+                    nonlocal n_labels_found
+                    n_labels_found += 1
+                    return ScoaryTree(label=scoary_tree.label)
+                else:
+                    return None
+            else:
+                left, right = prune(scoary_tree.left), prune(scoary_tree.right)
+                if left and right:
+                    return ScoaryTree(left=left, right=right)
+                if left:
+                    return left
+                if right:
+                    return right
+                return None
+
+        pruned_tree = prune(self)
+
+        assert n_labels_found == len(labels), f'Pruning went wrong: did not find all labels in tree! {n_labels_found=}; {labels=}; tree={self}'
+
+        return pruned_tree
+
     def rename(self, func: Callable):
         def convert(scoary_tree: ScoaryTree) -> ScoaryTree:
             """recursive function"""
@@ -81,15 +109,8 @@ class ScoaryTree:
 
     @classmethod
     def from_newick(cls, newick: str) -> ScoaryTree:
-        def convert(etetree: EteTree) -> ScoaryTree:
-            """recursive function"""
-            if len(etetree.children) == 0:
-                return cls(label=etetree.name)
-            else:
-                return cls(left=convert(etetree.children[0]), right=convert(etetree.children[1]))
-
-        ete_tree = EteTree(newick)
-        return convert(ete_tree)
+        list_tree = parse_newick(newick)
+        return cls.from_list(list_tree)
 
     @classmethod
     def from_list(cls, tree: []) -> ScoaryTree:
@@ -110,17 +131,9 @@ class ScoaryTree:
 
     @classmethod
     def from_presence_absence(cls, genes_df: pd.DataFrame) -> ScoaryTree:
-        def convert(node: BiotiteTreeNode) -> ScoaryTree:
-            """recursive function"""
-            if node.is_leaf():
-                return cls(label=str(node_to_label[node]))
-            else:
-                return cls(left=convert(node.children[0]), right=convert(node.children[1]))
-
-        distance_matrix = distance.squareform(distance.pdist(genes_df.T, 'hamming'))
-        tree = upgma(distance_matrix)
-        node_to_label: {BiotiteTreeNode: str} = {node: label for node, label in zip(tree.leaves, genes_df.columns)}
-        return convert(tree.root)
+        distance_matrix = pd.DataFrame(distance.squareform(distance.pdist(genes_df.T, 'hamming')), columns=genes_df.columns)
+        tree_as_list = upgma(distance_matrix)
+        return cls.from_list(tree_as_list)
 
 
 def _pick(
@@ -179,3 +192,72 @@ def count_max_pairings(tree: ScoaryTree, label_to_trait: {str: bool}, label_to_g
     pick_pairings(tree)
 
     return n_picks
+
+
+def count_sup_op(tree: ScoaryTree, label_to_trait: {str: bool}, label_to_gene: {str: bool}) -> (int, int):
+    n_sup = 0
+    n_opp = 0
+
+    logger.info(f'## pick count_sup_op pairs')
+
+    def pick_pairings(scoary_tree: ScoaryTree) -> {(bool, bool): ScoaryTree}:
+        if scoary_tree.is_leaf:
+            return {(label_to_gene[scoary_tree.label], label_to_trait[scoary_tree.label]): scoary_tree}
+        else:
+            left_pairings = pick_pairings(scoary_tree.left)
+            right_pairings = pick_pairings(scoary_tree.right)
+            supp_pair = pick_supporting(left_pairings, right_pairings)
+            if supp_pair is not None:
+                logger.info(f"supp pick: {supp_pair}")
+                nonlocal n_sup
+                n_sup += 1
+                return {}
+            else:
+                opp_pair = pick_opposing(left_pairings, right_pairings)
+                if opp_pair is not None:
+                    logger.info(f"opp pick: {opp_pair}")
+                    nonlocal n_opp
+                    n_opp += 1
+                    return {}
+                else:
+                    return left_pairings | right_pairings
+
+    pick_pairings(tree)
+
+    return n_sup, n_opp
+
+
+def count_best_worst(tree: ScoaryTree, label_to_trait: {str: bool}, label_to_gene: {str: bool}) -> (int, int):
+    n_best = 0
+    n_worst = 0
+
+    logger.info(f'## pick count_sup_op pairs')
+
+    def pick_pairings(scoary_tree: ScoaryTree) -> {(bool, bool): ScoaryTree}:
+        if scoary_tree.is_leaf:
+            return {(label_to_gene[scoary_tree.label], label_to_trait[scoary_tree.label]): scoary_tree}
+        else:
+            left_pairings = pick_pairings(scoary_tree.left)
+            right_pairings = pick_pairings(scoary_tree.right)
+
+            supp_pair = pick_supporting(left_pairings, right_pairings)
+            opp_pair = pick_opposing(left_pairings, right_pairings)
+
+            if supp_pair is None and opp_pair is None:
+                return left_pairings | right_pairings
+
+            if supp_pair is not None:
+                logger.info(f"supp pick: {supp_pair}")
+                nonlocal n_best
+                n_best += 1
+
+            if opp_pair is not None:
+                logger.info(f"opp pick: {opp_pair}")
+                nonlocal n_worst
+                n_worst += 1
+
+            return {}
+
+    pick_pairings(tree)
+
+    return n_best, n_worst
