@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Union, Optional, Callable
 
-from numba import njit, prange
+# from numba import njit, prange
 
 import pandas as pd
 from scipy.spatial import distance
@@ -148,116 +148,116 @@ def _pick(
     return None  # found no such pairing
 
 
-def pick_contrasting(left_pairings: {(bool, bool): ScoaryTree}, right_pairings: {(bool, bool): ScoaryTree}) -> Optional[(ScoaryTree, ScoaryTree)]:
-    return _pick([(True, True), (False, False), (True, False), (False, True)], left_pairings, right_pairings)
-
-
-def pick_supporting(left_pairings, right_pairings) -> Optional[(ScoaryTree, ScoaryTree)]:
-    return _pick([(True, True), (False, False)], left_pairings, right_pairings)
-
-
-def pick_opposing(left_pairings, right_pairings) -> Optional[(ScoaryTree, ScoaryTree)]:
-    return _pick([(True, False), (False, True)], left_pairings, right_pairings)
-
-
-def count_max_pairings(tree: ScoaryTree, label_to_trait: {str: bool}, label_to_gene: {str: bool}, type: str) -> int:
-    if type == 'contrasting':
-        pick = pick_contrasting
-    elif type == 'supporting':
-        pick = pick_supporting
-    elif type == 'opposing':
-        pick = pick_opposing
-    else:
-        raise AssertionError(f"{type=} not in ('contrasting', 'supporting', 'opposing')")
-
-    n_picks = 0
-
-    logger.info(f'## pick {type} pairs')
-
-    def pick_pairings(scoary_tree: ScoaryTree) -> {(bool, bool): ScoaryTree}:
-        if scoary_tree.is_leaf:
-            return {(label_to_gene[scoary_tree.label], label_to_trait[scoary_tree.label]): scoary_tree}
-        else:
-            left_pairings = pick_pairings(scoary_tree.left)
-            right_pairings = pick_pairings(scoary_tree.right)
-            pair = pick(left_pairings, right_pairings)
-            if pair is not None:
-                logger.info(f"{type} pick: {pair}")
-                nonlocal n_picks
-                n_picks += 1
-                return {}
-            else:
-                return left_pairings | right_pairings
-
-    pick_pairings(tree)
-
-    return n_picks
-
-
-def count_sup_op(tree: ScoaryTree, label_to_trait: {str: bool}, label_to_gene: {str: bool}) -> (int, int):
-    n_sup = 0
-    n_opp = 0
-
-    logger.info(f'## pick count_sup_op pairs')
-
-    def pick_pairings(scoary_tree: ScoaryTree) -> {(bool, bool): ScoaryTree}:
-        if scoary_tree.is_leaf:
-            return {(label_to_gene[scoary_tree.label], label_to_trait[scoary_tree.label]): scoary_tree}
-        else:
-            left_pairings = pick_pairings(scoary_tree.left)
-            right_pairings = pick_pairings(scoary_tree.right)
-            supp_pair = pick_supporting(left_pairings, right_pairings)
-            if supp_pair is not None:
-                logger.info(f"supp pick: {supp_pair}")
-                nonlocal n_sup
-                n_sup += 1
-                return {}
-            else:
-                opp_pair = pick_opposing(left_pairings, right_pairings)
-                if opp_pair is not None:
-                    logger.info(f"opp pick: {opp_pair}")
-                    nonlocal n_opp
-                    n_opp += 1
-                    return {}
-                else:
-                    return left_pairings | right_pairings
-
-    pick_pairings(tree)
-
-    return n_sup, n_opp
-
-
-def count_best_worst(tree: ScoaryTree, label_to_trait: {str: bool}, label_to_gene: {str: bool}) -> (int, int):
-    n_best = 0
-    n_worst = 0
-
-    logger.info(f'## pick count_sup_op pairs')
-
-    def pick_pairings(scoary_tree: ScoaryTree) -> {(bool, bool): ScoaryTree}:
-        if scoary_tree.is_leaf:
-            return {(label_to_gene[scoary_tree.label], label_to_trait[scoary_tree.label]): scoary_tree}
-        else:
-            left_pairings = pick_pairings(scoary_tree.left)
-            right_pairings = pick_pairings(scoary_tree.right)
-
-            supp_pair = pick_supporting(left_pairings, right_pairings)
-            opp_pair = pick_opposing(left_pairings, right_pairings)
-
-            if supp_pair is None and opp_pair is None:
-                return left_pairings | right_pairings
-
-            if supp_pair is not None:
-                logger.info(f"supp pick: {supp_pair}")
-                nonlocal n_best
-                n_best += 1
-
-            if opp_pair is not None:
-                logger.info(f"opp pick: {opp_pair}")
-                nonlocal n_worst
-                n_worst += 1
-
-            return {}
-
-    pick_pairings(tree)
-
-    return n_best, n_worst
+# def pick_contrasting(left_pairings: {(bool, bool): ScoaryTree}, right_pairings: {(bool, bool): ScoaryTree}) -> Optional[(ScoaryTree, ScoaryTree)]:
+#     return _pick([(True, True), (False, False), (True, False), (False, True)], left_pairings, right_pairings)
+#
+#
+# def pick_supporting(left_pairings, right_pairings) -> Optional[(ScoaryTree, ScoaryTree)]:
+#     return _pick([(True, True), (False, False)], left_pairings, right_pairings)
+#
+#
+# def pick_opposing(left_pairings, right_pairings) -> Optional[(ScoaryTree, ScoaryTree)]:
+#     return _pick([(True, False), (False, True)], left_pairings, right_pairings)
+#
+#
+# def count_max_pairings(tree: ScoaryTree, label_to_trait: {str: bool}, label_to_gene: {str: bool}, type: str) -> int:
+#     if type == 'contrasting':
+#         pick = pick_contrasting
+#     elif type == 'supporting':
+#         pick = pick_supporting
+#     elif type == 'opposing':
+#         pick = pick_opposing
+#     else:
+#         raise AssertionError(f"{type=} not in ('contrasting', 'supporting', 'opposing')")
+#
+#     n_picks = 0
+#
+#     logger.info(f'## pick {type} pairs')
+#
+#     def pick_pairings(scoary_tree: ScoaryTree) -> {(bool, bool): ScoaryTree}:
+#         if scoary_tree.is_leaf:
+#             return {(label_to_gene[scoary_tree.label], label_to_trait[scoary_tree.label]): scoary_tree}
+#         else:
+#             left_pairings = pick_pairings(scoary_tree.left)
+#             right_pairings = pick_pairings(scoary_tree.right)
+#             pair = pick(left_pairings, right_pairings)
+#             if pair is not None:
+#                 logger.info(f"{type} pick: {pair}")
+#                 nonlocal n_picks
+#                 n_picks += 1
+#                 return {}
+#             else:
+#                 return left_pairings | right_pairings
+#
+#     pick_pairings(tree)
+#
+#     return n_picks
+#
+#
+# def count_sup_op(tree: ScoaryTree, label_to_trait: {str: bool}, label_to_gene: {str: bool}) -> (int, int):
+#     n_sup = 0
+#     n_opp = 0
+#
+#     logger.info(f'## pick count_sup_op pairs')
+#
+#     def pick_pairings(scoary_tree: ScoaryTree) -> {(bool, bool): ScoaryTree}:
+#         if scoary_tree.is_leaf:
+#             return {(label_to_gene[scoary_tree.label], label_to_trait[scoary_tree.label]): scoary_tree}
+#         else:
+#             left_pairings = pick_pairings(scoary_tree.left)
+#             right_pairings = pick_pairings(scoary_tree.right)
+#             supp_pair = pick_supporting(left_pairings, right_pairings)
+#             if supp_pair is not None:
+#                 logger.info(f"supp pick: {supp_pair}")
+#                 nonlocal n_sup
+#                 n_sup += 1
+#                 return {}
+#             else:
+#                 opp_pair = pick_opposing(left_pairings, right_pairings)
+#                 if opp_pair is not None:
+#                     logger.info(f"opp pick: {opp_pair}")
+#                     nonlocal n_opp
+#                     n_opp += 1
+#                     return {}
+#                 else:
+#                     return left_pairings | right_pairings
+#
+#     pick_pairings(tree)
+#
+#     return n_sup, n_opp
+#
+#
+# def count_best_worst(tree: ScoaryTree, label_to_trait: {str: bool}, label_to_gene: {str: bool}) -> (int, int):
+#     n_best = 0
+#     n_worst = 0
+#
+#     logger.info(f'## pick count_sup_op pairs')
+#
+#     def pick_pairings(scoary_tree: ScoaryTree) -> {(bool, bool): ScoaryTree}:
+#         if scoary_tree.is_leaf:
+#             return {(label_to_gene[scoary_tree.label], label_to_trait[scoary_tree.label]): scoary_tree}
+#         else:
+#             left_pairings = pick_pairings(scoary_tree.left)
+#             right_pairings = pick_pairings(scoary_tree.right)
+#
+#             supp_pair = pick_supporting(left_pairings, right_pairings)
+#             opp_pair = pick_opposing(left_pairings, right_pairings)
+#
+#             if supp_pair is None and opp_pair is None:
+#                 return left_pairings | right_pairings
+#
+#             if supp_pair is not None:
+#                 logger.info(f"supp pick: {supp_pair}")
+#                 nonlocal n_best
+#                 n_best += 1
+#
+#             if opp_pair is not None:
+#                 logger.info(f"opp pick: {opp_pair}")
+#                 nonlocal n_worst
+#                 n_worst += 1
+#
+#             return {}
+#
+#     pick_pairings(tree)
+#
+#     return n_best, n_worst

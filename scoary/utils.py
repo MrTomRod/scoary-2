@@ -1,8 +1,9 @@
 import pandas as pd
 
-from math import inf, nan, isinf, isnan, isclose
+# from math import inf, nan, isinf, isnan, isclose
 
-ALLOWED_CORRECTIONS = {'bonferroni', 'sidak', 'holm-sidak', 'holm', 'simes-hochberg', 'hommel', 'fdr_bh', 'fdr_by', 'fdr_tsbh', 'fdr_tsbky'}
+ALLOWED_CORRECTIONS = {'bonferroni', 'sidak', 'holm-sidak', 'holm', 'simes-hochberg', 'hommel', 'fdr_bh', 'fdr_by',
+                       'fdr_tsbh', 'fdr_tsbky'}
 
 
 def parse_correction(multiple_testing: str) -> (str, float):
@@ -22,7 +23,7 @@ def parse_correction(multiple_testing: str) -> (str, float):
 
 
 def get_label_to_trait(trait: pd.Series) -> {str: bool}:
-    return {l: bool(t) for l, t in trait.items() if not isnan(t)}
+    return {l: bool(t) for l, t in trait.items() if not pd.isna(t)}
 
 
 def get_all_label_to_gene(genes_df: pd.DataFrame) -> pd.DataFrame:
