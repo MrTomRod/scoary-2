@@ -36,15 +36,15 @@ def time_fn(fn: Callable, args=None, kwargs=None, n_times: int = 1) -> (float, A
 boolify = lambda t1, t2: f"{'A' if t1 else 'a'}{'B' if t2 else 'b'}"
 
 
-def scoary_1_pick(tree: [], label_to_gene: {str: bool}, permuted_traits_df: pd.DataFrame):
-    labels = set(permuted_traits_df.columns)
+def scoary_1_pick(tree: [], label_to_trait_a: {str: bool}, trait_b_df: pd.DataFrame):
+    labels = set(trait_b_df.columns)
 
-    max_contrasting = np.empty(shape=len(permuted_traits_df), dtype='int')
-    max_supporting = np.empty(shape=len(permuted_traits_df), dtype='int')
-    max_opposing = np.empty(shape=len(permuted_traits_df), dtype='int')
+    max_contrasting = np.empty(shape=len(trait_b_df), dtype='int')
+    max_supporting = np.empty(shape=len(trait_b_df), dtype='int')
+    max_opposing = np.empty(shape=len(trait_b_df), dtype='int')
 
-    for i, label_to_trait in permuted_traits_df.iterrows():
-        gtc = {l: boolify(label_to_gene[l], label_to_trait[l]) for l in labels}
+    for i, (_, label_to_trait) in enumerate(trait_b_df.iterrows()):
+        gtc = {l: boolify(label_to_trait_a[l], label_to_trait[l]) for l in labels}
         phylo_tree, result_dict = convert_upgma_to_phylotree(tree, gtc)
 
         max_contrasting[i] = result_dict['Total']
@@ -54,16 +54,16 @@ def scoary_1_pick(tree: [], label_to_gene: {str: bool}, permuted_traits_df: pd.D
     return max_contrasting, max_supporting, max_opposing
 
 
-tree = [['strain1', 'strain2'], ['strain3', 'strain4']]
+dummy_tree = [['strain1', 'strain2'], ['strain3', 'strain4']]
 
-label_to_gene = {
+dummy_trait_a = {
     'strain1': True,
     'strain2': False,
     'strain3': False,
     'strain4': True,
 }
 
-permuted_traits_df = pd.DataFrame(
+dummy_trait_b_df = pd.DataFrame(
     [
         [True, True, False, False],
         [True, False, True, False],
@@ -78,31 +78,24 @@ permuted_traits_df = pd.DataFrame(
 
 
 class Test(TestCase):
-    def test_old(self):
-        for i in range(1000):
-            mc, ms, mo = scoary_1_pick(tree=tree, label_to_gene=label_to_gene, permuted_traits_df=permuted_traits_df)
-
-    def test_new(self):
-        for i in range(1000):
-            mc, ms, mo = pick(tree=tree, label_to_gene=label_to_gene, permuted_traits_df=permuted_traits_df)
-
     def test_identical(self):
         print('SCOARY 1')
-        mc_1, ms_1, mo_1 = scoary_1_pick(tree=tree, label_to_gene=label_to_gene, permuted_traits_df=permuted_traits_df)
+        mc_1, ms_1, mo_1 = scoary_1_pick(tree=dummy_tree, label_to_trait_a=dummy_trait_a, trait_b_df=dummy_trait_b_df)
         print('SCOARY 2')
-        mc_2, ms_2, mo_2 = pick(tree=tree, label_to_gene=label_to_gene, permuted_traits_df=permuted_traits_df)
+        mc_2, ms_2, mo_2 = pick(tree=dummy_tree, label_to_trait_a=dummy_trait_a, trait_b_df=dummy_trait_b_df,
+                                calc_pvals=False)
 
         self.assertTrue(all(np.equal(mc_1, mc_2)), msg='contrasting')
         self.assertTrue(all(np.equal(ms_1, ms_2)), msg='supporting')
         self.assertTrue(all(np.equal(mo_1, mo_2)), msg='opposing')
 
-    def test_pick(self):
-        pick(tree=tree, label_to_gene=label_to_gene, permuted_traits_df=permuted_traits_df)
+    def test_time(self):
+        pick(tree=dummy_tree, label_to_trait_a=dummy_trait_a, trait_b_df=dummy_trait_b_df, calc_pvals=False)
 
         print('SCOARY 1')
         time_1, res = time_fn(
             scoary_1_pick,
-            kwargs=dict(tree=tree, label_to_gene=label_to_gene, permuted_traits_df=permuted_traits_df),
+            kwargs=dict(tree=dummy_tree, label_to_trait_a=dummy_trait_a, trait_b_df=dummy_trait_b_df),
             n_times=1000
         )
         mc_1, ms_1, mo_1 = res
@@ -110,7 +103,8 @@ class Test(TestCase):
         print('SCOARY 2')
         time_2, res = time_fn(
             pick,
-            kwargs=dict(tree=tree, label_to_gene=label_to_gene, permuted_traits_df=permuted_traits_df),
+            kwargs=dict(tree=dummy_tree, label_to_trait_a=dummy_trait_a, trait_b_df=dummy_trait_b_df,
+                        calc_pvals=False),
             n_times=1000
         )
         mc_2, ms_2, mo_2 = res
@@ -121,3 +115,45 @@ class Test(TestCase):
         self.assertTrue(all(np.equal(mc_1, mc_2)), msg='contrasting')
         self.assertTrue(all(np.equal(ms_1, ms_2)), msg='supporting')
         self.assertTrue(all(np.equal(mo_1, mo_2)), msg='opposing')
+
+    def test_tetracycline(self, run_scoary_1=False):
+        from scoary.scoary import load_genes, load_traits
+        from tests.init_tests import get_json, get_path
+
+        tetr_tree = get_json('tetracycline', 'treelist')['as_list']
+        tetr_genes_df = load_genes(get_path('tetracycline', 'genes'), delimiter=',', start_col=13)
+        tetr_traits_df = load_traits(get_path('tetracycline', 'traits'), delimiter=',')
+
+        tetr_label_to_gene = tetr_traits_df['Tetracycline_resistance'].to_dict()
+
+        # jit compile
+        pick(tree=dummy_tree, label_to_trait_a=dummy_trait_a, trait_b_df=dummy_trait_b_df, calc_pvals=False)
+
+        if run_scoary_1:
+            print('SCOARY 1')
+            time_1, res = time_fn(
+                scoary_1_pick,
+                kwargs=dict(tree=tetr_tree, label_to_trait_a=tetr_label_to_gene, trait_b_df=tetr_genes_df),
+                n_times=5
+            )
+            mc_1, ms_1, mo_1 = res
+        else:
+            time_1 = 19.
+
+        print('SCOARY 2')
+        time_2, res = time_fn(
+            pick,
+            kwargs=dict(tree=tetr_tree, label_to_trait_a=tetr_label_to_gene, trait_b_df=tetr_genes_df,
+                        calc_pvals=False),
+            n_times=20
+        )
+        mc_2, ms_2, mo_2 = res
+
+        print(f'Scoary1 took {time_1} sec')
+        print(f'Scoary2 took {time_2} sec')
+        print(f'Scoary1 vs Scoary2: {time_1 / time_2}x improvement')
+
+        if run_scoary_1:
+            self.assertTrue(all(np.equal(mc_1, mc_2)), msg='contrasting')
+            self.assertTrue(all(np.equal(ms_1, ms_2)), msg='supporting')
+            self.assertTrue(all(np.equal(mo_1, mo_2)), msg='opposing')

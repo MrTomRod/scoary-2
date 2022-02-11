@@ -1,5 +1,3 @@
-import pandas as pd
-
 from init_tests import *
 
 from scoary.scoary import *
@@ -68,11 +66,13 @@ class TestScoary(TestCase):
         test_df = add_odds_ratio(test_df)
         self.assertEqual(
             test_df.columns.tolist(),
-            ['Gene', 'c1r1', 'c2r1', 'c1r2', 'c2r2', '__contingency_table__', 'sensitivity', 'specificity', 'odds_ratio']
+            ['Gene', 'c1r1', 'c2r1', 'c1r2', 'c2r2', '__contingency_table__', 'sensitivity', 'specificity',
+             'odds_ratio']
         )
 
         # calculate odds_ratio with fisher_exact
-        fisher_ors = test_df.apply(lambda row: fisher_exact([[row['c1r1'], row['c2r1']], [row['c1r2'], row['c2r2']]])[0], axis=1)
+        fisher_ors = test_df.apply(
+            lambda row: fisher_exact([[row['c1r1'], row['c2r1']], [row['c1r2'], row['c2r2']]])[0], axis=1)
 
         # check if result is identical
         for manual_or, fisher_or in zip(test_df['odds_ratio'], fisher_ors):
@@ -93,7 +93,7 @@ class TestScoary(TestCase):
         tree = ScoaryTree.from_list(get_json('tetracycline', 'treelist')['as_list'])
         assert set(tree.labels()) == set(all_label_to_gene['TetRCG'])
         label_to_trait = get_label_to_trait(trait_series)
-        test_df = compute_pairs(test_df, all_label_to_gene, tree=tree, label_to_trait=label_to_trait)
+        test_df = compute_pairs(test_df, genes_df, tree=tree, label_to_trait=label_to_trait)
 
         # load expected result from scoary 1
         expected_result = pd.read_csv(get_path('tetracycline', 'scoary1-result'))
@@ -108,8 +108,6 @@ class TestScoary(TestCase):
                      row.Number_neg_not_present_in)
             new_row = test_df.loc[row.Gene]
             new_table = tuple(int(new_row[c]) for c in ('c1r1', 'c2r1', 'c1r2', 'c2r2'))
-
-            print(row.Gene)
 
             self.assertEqual(table, new_table)
             self.assertAlmostEqual(row.Odds_ratio, new_row.odds_ratio,
@@ -132,8 +130,9 @@ class TestScoary(TestCase):
                 self.assertEqual(row.Max_opposing_pairs, new_row.opposing)
                 self.assertAlmostEqual(row.Best_pairwise_comp_p, new_row.best)
                 self.assertAlmostEqual(row.Worst_pairwise_comp_p, new_row.worst)
-            except Exception:
-                print('xxx')
+            except Exception as e:
+                print(i, row.Gene, xx)
+                self.fail(msg=str(e))
 
     def test_with_internal_data(self):
         ANYGENE = 'gene1291'
@@ -160,7 +159,8 @@ class TestScoary(TestCase):
 
             trait_series = traits_df[trait]
             # calculate sensitivity and specificity
-            test_df = init_result_df(genes_df, label_to_trait={l: bool(v) for l, v in trait_series.items() if v in (0, 1)})
+            test_df = init_result_df(genes_df,
+                                     label_to_trait={l: bool(v) for l, v in trait_series.items() if v in (0, 1)})
             # calculate odds_ratio
             test_df = add_odds_ratio(test_df)
             # calculate pairwise comparisons

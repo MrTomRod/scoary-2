@@ -1,11 +1,8 @@
+import logging
 import random
 from collections import defaultdict
-
-from statsmodels.stats.multitest import multipletests
-from scipy.stats import binom_test
 import numpy as np
-
-import logging
+from statsmodels.stats.multitest import multipletests
 
 logger = logging.getLogger('scoary')
 
@@ -13,7 +10,8 @@ from .utils import *
 # from .fast_fisher_numba import odds_ratio, test1t as fisher_exact_two_tailed, fisher_id
 from fast_fisher.fast_fisher_cython import odds_ratio, test1t as fisher_exact_two_tailed
 
-from .scoary_1_picking import *
+from .picking import pick
+
 import scipy.stats as ss
 
 
@@ -102,9 +100,12 @@ def scoary(
             print(f'found 0 genes for {trait=}')
             continue
 
-        result_df = pd.merge(test_df, result_df, how="left", on='__contingency_table__',
-                             copy=False)  # copy=False for performance
-        # result_df = compute_pairs(result_df, all_label_to_gene, tree=pruned_tree, label_to_trait=label_to_trait)
+        result_df = pd.merge(
+            test_df, result_df, how="left", on='__contingency_table__',
+            copy=False  # for performance
+        )
+
+        result_df = compute_pairs(result_df, all_label_to_gene, tree=pruned_tree, label_to_trait=label_to_trait)
 
         if n_permut:
             # conf_int = calculate_confidence_interval(genes_df, label_to_trait, n_permut=n_permut)
@@ -132,7 +133,7 @@ def load_genes(genes: str, delimiter: str, start_col: int) -> pd.DataFrame:
     :param genes: Path to genes file
     :param delimiter: delimiter
     :param start_col: how many columns to skip
-    :return: genes_df (DataFrame); columns: strains; index: genes; dtype: boolean
+    :return: genes_df (DataFrame, dtype: bool); columns: strains; index: genes
     """
     dtypes = defaultdict(lambda: int)
     dtypes["index_column"] = str
@@ -161,7 +162,7 @@ def load_traits(traits, delimiter) -> pd.DataFrame:
 
     :param traits: Path to traits file
     :param delimiter: delimiter
-    :return: traits_df (DataFrame); columns: trait_names; index: strains; dtype: boolean
+    :return: traits_df (DataFrame, dtype: bool); columns: trait_names; index: strains
     """
     dtypes = defaultdict(lambda: int)
     dtypes["index_column"] = str
@@ -183,7 +184,7 @@ def init_result_df(genes_df: pd.DataFrame, label_to_trait: dict[str:bool]) -> pd
     """
     Create result_df with index=strains and columns=[c1r1, c2r1, c1r2, c2r2, __contingency_table__]
 
-    :param genes_df: DataFrame; columns: strains; rows: genes; data: binary (0 or 1)
+    :param genes_df: DataFrame (dtype: bool); columns: strains; rows: genes
     :param trait_pos: strains that have the trait
     :param trait_neg: strains that lack the trait
     :return: result_df (DataFrame); columns: ['c1r1', 'c2r1', 'c1r2', 'c2r2', '__contingency_table__]; index: strains
@@ -235,7 +236,7 @@ def create_test_df(result_df: pd.DataFrame, sort=True) -> pd.DataFrame:
 
     :param result_df: DataFrame with column '__contingency_table__'
     :param sort: whether to sort the DataFrame by pvalue
-    :return: test_df (DataFrame);
+    :return: test_df (DataFrame)
     """
 
     test_df = pd.DataFrame(result_df.__contingency_table__.unique(), columns=['__contingency_table__'])
@@ -281,44 +282,32 @@ def perform_multiple_testing_correction(test_df: pd.DataFrame, native_cutoff: fl
     return test_df
 
 
-# def compute_pairs(result_df: pd.DataFrame, all_label_to_gene, tree: ScoaryTree,
-#                   label_to_trait: {str: bool}) -> pd.DataFrame:
-#     """
-#     Required rows:
-#     - Gene
-#
-#     Add columns:
-#     - Max_Pairwise_comparisons
-#     - Max_supporting_pairs
-#     - Max_opposing_pairs
-#     - Best_pairwise_comp_p
-#     - Worst_pairwise_comp_p
-#     """
-#
-#     def func(row):
-#         if row.odds_ratio >= 1:
-#             label_to_gene = all_label_to_gene[row.Gene]
-#         else:
-#             label_to_gene = {l: not g for l, g in all_label_to_gene[row.Gene].items()}
-#
-#         contrasting = count_max_pairings(tree, label_to_trait, label_to_gene, type='contrasting')
-#         # supporting = count_max_pairings(tree, label_to_trait, label_to_gene, type='supporting')
-#         # opposing = count_max_pairings(tree, label_to_trait, label_to_gene, type='opposing')
-#         # supporting, opposing = count_sup_op(tree, label_to_trait, label_to_gene)
-#         supporting, opposing = count_best_worst(tree, label_to_trait, label_to_gene)
-#
-#         best = binom_test(x=supporting, n=contrasting)
-#         worst = binom_test(x=contrasting - opposing, n=contrasting)
-#         if worst < best:
-#             best, worst = worst, best
-#
-#         return contrasting, supporting, opposing, best, worst
-#
-#     result_df[['contrasting', 'supporting', 'opposing', 'best', 'worst']] = pd.DataFrame(
-#         result_df.apply(func=func, axis=1).tolist()  # autodetect dtype
-#     )
-#
-#     return result_df
+def compute_pairs(result_df: pd.DataFrame, genes_df: pd.DataFrame, tree: ScoaryTree,
+                  label_to_trait: {str: bool}) -> pd.DataFrame:
+    """
+    Required rows:
+    - Gene
+
+    Add columns:
+    - Max_Pairwise_comparisons
+    - Max_supporting_pairs
+    - Max_opposing_pairs
+    - Best_pairwise_comp_p
+    - Worst_pairwise_comp_p
+    """
+
+    max_contr, max_suppo, max_oppos, best, worst = pick(
+        tree=tree.to_list(), label_to_trait_a=label_to_trait,
+        trait_b_df=genes_df, calc_pvals=True
+    )
+
+    result_df['contrasting'] = max_contr
+    result_df['supporting'] = max_suppo
+    result_df['opposing'] = max_oppos
+    result_df['best'] = best
+    result_df['worst'] = worst
+
+    return result_df
 
 
 # @njit(parallel=True)

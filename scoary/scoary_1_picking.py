@@ -1,13 +1,3 @@
-import numpy as np
-import os
-
-PRINT_ANY = os.environ.get('PRINT_ANY', 'FALSE').lower() == 'true'
-PRINT_INIT = os.environ.get('PRINT_INIT', 'FALSE').lower() == 'true'
-PRINT_COMBINE = os.environ.get('PRINT_COMBINE', 'FALSE').lower() == 'true'
-PRINT_BEFORE_COMBINE = os.environ.get('PRINT_BEFORE_COMBINE', 'FALSE').lower() == 'true'
-PRINT_AFTER_COMBINE = os.environ.get('PRINT_AFTER_COMBINE', 'FALSE').lower() == 'true'
-
-
 class PhyloTree:
     """
     A class that represents a binary tree. Phylotrees can be nested.
@@ -35,7 +25,6 @@ class PhyloTree:
         # recursively create PhyloTrees.
 
         if type(leftnode) is str:
-            if PRINT_ANY: print(f'INIT LEAF LEFT: {leftnode}')
             self.leftnode = Tip(GTC[leftnode], leftnode)
         elif isinstance(leftnode, PhyloTree):
             self.leftnode = leftnode
@@ -45,7 +34,6 @@ class PhyloTree:
                                       GTC=GTC)
 
         if type(rightnode) is str:
-            if PRINT_ANY: print(f'INIT LEAF RIGHT: {rightnode}')
             self.rightnode = Tip(GTC[rightnode], rightnode)
         elif isinstance(rightnode, PhyloTree):
             self.rightnode = rightnode
@@ -54,7 +42,6 @@ class PhyloTree:
                                        rightnode=rightnode[1],
                                        GTC=GTC)
 
-        if PRINT_ANY: print(f'COMBINE BRANCHES [{leftnode}, {rightnode}]')
         # Initialize the max number of paths. Set to -1 meaning they
         # cannot be reached
         self.maxvalues = \
@@ -67,13 +54,6 @@ class PhyloTree:
         self.max_contrasting_pairs = max(self.maxvalues.values())
         self.max_contrasting_propairs = max(self.max_propairs.values())
         self.max_contrasting_antipairs = max(self.max_antipairs.values())
-
-        if PRINT_COMBINE:
-            print(np.array([[
-                list(self.maxvalues.values()),
-                list(self.max_propairs.values()),
-                list(self.max_antipairs.values()),
-            ]]))
 
     def __str__(self):
         return f'({self.leftnode}, {self.rightnode})'
@@ -96,18 +76,6 @@ class PhyloTree:
         conditions
         """
 
-        if PRINT_BEFORE_COMBINE:
-            print('BEFORE_COMBINE_L\n', np.array([[
-                list(self.leftnode.maxvalues.values()),
-                list(self.leftnode.max_propairs.values()),
-                list(self.leftnode.max_antipairs.values()),
-            ]]))
-            print('BEFORE_COMBINE_R\n', np.array([[
-                list(self.rightnode.maxvalues.values()),
-                list(self.rightnode.max_propairs.values()),
-                list(self.rightnode.max_antipairs.values()),
-            ]]))
-
         for condition in ["AB", "Ab", "aB", "ab"]:
             pairings = self.calculate_max_condition(condition)  # {"Total": int, "Pro": int, "Anti": int}
             self.maxvalues[condition] = pairings["Total"]
@@ -117,13 +85,6 @@ class PhyloTree:
         self.maxvalues["0"] = pairings["Total"]
         self.max_propairs["0"] = pairings["Pro"]
         self.max_antipairs["0"] = pairings["Anti"]
-
-        if PRINT_AFTER_COMBINE:
-            print('AFTER_COMBINE\n', np.array([[
-                list(self.maxvalues.values()),
-                list(self.max_propairs.values()),
-                list(self.max_antipairs.values()),
-            ]]))
 
     def calculate_max_condition(self, condition):
         """
@@ -403,13 +364,6 @@ class Tip:
                 self.maxvalues[condition] = -1
         self.max_propairs = {k: v for (k, v) in self.maxvalues.items()}
         self.max_antipairs = {k: v for (k, v) in self.maxvalues.items()}
-
-        if PRINT_INIT:
-            print(np.array([[
-                list(self.maxvalues.values()),
-                list(self.max_propairs.values()),
-                list(self.max_antipairs.values()),
-            ]]))
 
     def __str__(self):
         tv1, tv2 = self.tipvalue
