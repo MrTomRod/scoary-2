@@ -67,6 +67,39 @@ class TestTreeFunctions(TestCase):
         real_labels = pruned_tree.labels()
         self.assertEqual(real_labels, prune_labels)
 
+    def test_copy(self):
+        scoary_tree = ScoaryTree.from_list(
+            [[[[[[['1', '2'], ['3', '4']], '5'], '6'], '7'], '8'],
+             [[[[['9', [['10', '11'], '12']], '13'], '14'], '15'], [['16', '17'], [['18', ['19', '20']], '21']]]]
+        )
+        copied_tree = scoary_tree.copy_nonrecursive()
+        nonrec_copied_tree = scoary_tree.copy_nonrecursive()
+
+        def confirm_copy(t1: ScoaryTree, t2: ScoaryTree):
+            self.assertFalse(t1 is t2)
+            if t1.is_leaf:
+                self.assertTrue(t2.is_leaf)
+                self.assertTrue(t1.label == t2.label)
+            else:
+                self.assertFalse(t2.is_leaf)
+                confirm_copy(t1.left, t2.left)
+                confirm_copy(t1.right, t2.right)
+
+        confirm_copy(scoary_tree, copied_tree)
+        confirm_copy(scoary_tree, nonrec_copied_tree)
+        with self.assertRaises(AssertionError):
+            confirm_copy(scoary_tree, scoary_tree)
+
+    def test_prune_nonrecursive(self):
+        scoary_tree = ScoaryTree.from_list(
+            [[[[[[['1', '2'], ['3', '4']], '5'], '6'], '7'], '8'],
+             [[[[['9', [['10', '11'], '12']], '13'], '14'], '15'], [['16', '17'], [['18', ['19', '20']], '21']]]]
+        )
+        prune_labels = ['1', '2', '3', '18', '19', '20']
+        pruned_tree = scoary_tree.prune_nonrecursive(labels=prune_labels)
+        real_labels = pruned_tree.labels()
+        self.assertEqual(real_labels, prune_labels)
+
     def test_pairs_paper(self):
         scoary_tree = ScoaryTree.from_list(
             [[[[[[['1', '2'], ['3', '4']], '5'], '6'], '7'], '8'],
@@ -76,7 +109,8 @@ class TestTreeFunctions(TestCase):
         labels = scoary_tree.labels()
         assert labels == [str(v) for v in list(range(1, 22))]
 
-        seq = [(0, 0), (0, 0), (1, 1), (1, 1), (1, 1), (0, 0), (0, 0), (1, 1), (1, 1), (0, 0), (1, 0), (0, 1), (0, 0), (1, 1), (1, 1), (0, 0), (0, 0),
+        seq = [(0, 0), (0, 0), (1, 1), (1, 1), (1, 1), (0, 0), (0, 0), (1, 1), (1, 1), (0, 0), (1, 0), (0, 1), (0, 0),
+               (1, 1), (1, 1), (0, 0), (0, 0),
                (1, 1), (1, 1), (0, 0), (1, 1), ]
 
         label_to_gene = {lab: bool(tup[0]) for tup, lab in zip(seq, labels)}
@@ -120,7 +154,8 @@ class TestTreeFunctions(TestCase):
             max_supporting = count_max_pairings(scoary_tree, label_to_trait, label_to_gene, type='supporting')
             max_opposing = count_max_pairings(scoary_tree, label_to_trait, label_to_gene, type='opposing')
 
-            print((old_max_comparisons, max_comparisons), (old_max_supporting, max_supporting), (old_max_opposing, max_opposing))
+            print((old_max_comparisons, max_comparisons), (old_max_supporting, max_supporting),
+                  (old_max_opposing, max_opposing))
 
             if old_max_supporting != max_supporting or old_max_opposing != max_opposing:
                 print(gene, scoary_tree)
