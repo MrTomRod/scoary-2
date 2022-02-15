@@ -1,5 +1,6 @@
 import json
 import numpy as np
+import pandas as pd
 from os.path import dirname
 from scipy.spatial import distance
 from scipy.stats import fisher_exact, boschloo_exact

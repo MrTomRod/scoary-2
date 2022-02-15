@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Optional, Callable
 
+import numpy as np
 import pandas as pd
 from scipy.spatial import distance
 
@@ -36,7 +37,8 @@ class ScoaryTree:
     right: Optional[ScoaryTree] = None
     label: Optional[str] = None
     is_leaf: bool = False
-    __prune = False
+    _values: Optional[np.ndarray] = None
+    _prune = False
 
     def __init__(self, left: ScoaryTree = None, right: ScoaryTree = None, label: str = None):
         if left is None and right is None:
@@ -125,17 +127,14 @@ class ScoaryTree:
                 if current_node.label in labels:
                     n_labels_found += 1
                 else:
-                    this.__prune = True  # mark for pruning
+                    this._prune = True  # mark for pruning
 
                 # append self to parent
                 setattr(current_parent, current_direction, this)
 
-                if current_direction == 'left':
-                    # remove leaf from stack
-                    stack.pop()
-                else:
+                if current_direction == 'right':
                     # prune
-                    current_parent._prune()
+                    current_parent.__prune()
                     stack.pop()
 
                     # found terminal node
@@ -143,7 +142,7 @@ class ScoaryTree:
                     while stack:
                         ancestor_node, ancestor_direction = stack[-1]
                         if ancestor_direction == 'right':
-                            ancestor_node._prune()
+                            ancestor_node.__prune()
                             stack.pop()
                         else:
                             break
@@ -152,8 +151,8 @@ class ScoaryTree:
                         print(f'done\n{self}\n{root}')
                         break
 
-                    # pop one more -> go right on this node
-                    stack.pop()
+                # pop left node -> go right next
+                stack.pop()
 
             else:
                 this = ScoaryTree(left=current_node.left, right=current_node.right)
@@ -186,9 +185,6 @@ class ScoaryTree:
                 # append self to parent
                 setattr(current_parent, current_direction, this)
 
-                # remove leaf from stack
-                stack.pop()
-
                 if current_direction == 'right':
                     # found terminal node
                     # # GO UP UNTIL CAN GO RIGHT
@@ -199,8 +195,8 @@ class ScoaryTree:
                         print(f'done\n{self}\n{root}')
                         break
 
-                    # pop one more -> go right on this node
-                    stack.pop()
+                # pop left node -> go right next
+                stack.pop()
 
             else:
                 this = ScoaryTree(left=current_node.left, right=current_node.right)
@@ -256,34 +252,33 @@ class ScoaryTree:
         tree_as_list = upgma(distance_matrix)
         return cls.from_list(tree_as_list)
 
-    def _prune(self):
-        if self.left.__prune and self.right.__prune:
-            self.__prune = True
-        elif self.left.__prune:
+    def __prune(self):
+        if self.left._prune and self.right._prune:
+            self._prune = True
+        elif self.left._prune:
             # become right
             self.label = self.right.label
             self.is_leaf = self.right.is_leaf
             self.left = self.right.left
             self.right = self.right.right
-        elif self.right.__prune:
+        elif self.right._prune:
             # become left
             self.label = self.left.label
             self.is_leaf = self.left.is_leaf
             self.right = self.left.right
             self.left = self.left.left
 
-
-def _pick(
-        pairs_to_pick: [(bool, bool)],
-        left_pairings: {(bool, bool): ScoaryTree},
-        right_pairings: {(bool, bool): ScoaryTree}
-) -> Optional[(ScoaryTree, ScoaryTree)]:
-    for pair in pairs_to_pick:
-        antipair = (not pair[0], not pair[1])
-        if pair in left_pairings and antipair in right_pairings:
-            return left_pairings[pair], right_pairings[antipair]
-    return None  # found no such pairing
-
+# def _pick(
+#         pairs_to_pick: [(bool, bool)],
+#         left_pairings: {(bool, bool): ScoaryTree},
+#         right_pairings: {(bool, bool): ScoaryTree}
+# ) -> Optional[(ScoaryTree, ScoaryTree)]:
+#     for pair in pairs_to_pick:
+#         antipair = (not pair[0], not pair[1])
+#         if pair in left_pairings and antipair in right_pairings:
+#             return left_pairings[pair], right_pairings[antipair]
+#     return None  # found no such pairing
+#
 # def pick_contrasting(left_pairings: {(bool, bool): ScoaryTree}, right_pairings: {(bool, bool): ScoaryTree}) -> Optional[(ScoaryTree, ScoaryTree)]:
 #     return _pick([(True, True), (False, False), (True, False), (False, True)], left_pairings, right_pairings)
 #

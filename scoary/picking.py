@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 from scipy.stats import binom_test
 
+from .ScoaryTree import ScoaryTree
+
 
 def pick(
         tree: [],
@@ -46,6 +48,71 @@ def pick(
         return combined
 
     values = _pick(tree[0], tree[1])
+
+    max_contr = values[:, 0, :].max(axis=1)
+    max_suppo = values[:, 1, :].max(axis=1)
+    max_oppos = values[:, 2, :].max(axis=1)
+
+    if not calc_pvals:
+        return max_contr, max_suppo, max_oppos
+
+    best, worst = apply_binomtest(max_contr, max_suppo, max_oppos)
+
+    return max_contr, max_suppo, max_oppos, best, worst
+
+
+def pick_nonrecursive(
+        tree: [],
+        label_to_trait_a: {str: bool},
+        trait_b_df: pd.DataFrame,
+        calc_pvals: bool = True
+) -> (np.array, np.array, np.array, np.array, np.array):
+    if tree.is_leaf:
+        return init_leaf(
+            trait_a=label_to_trait_a[tree.label],
+            trait_b_list=trait_b_df[tree.label].to_numpy(dtype='bool')
+        )
+
+    stack = [[tree, 'right'], [tree, 'left']]
+
+    while stack:
+        current_parent, current_direction = stack[-1]
+        current_node: ScoaryTree = getattr(current_parent, current_direction)
+
+        if current_node.is_leaf:
+            # current node is leaf
+            this = init_leaf(
+                trait_a=label_to_trait_a[current_node.label],
+                trait_b_list=trait_b_df[current_node.label].to_numpy(dtype='bool')
+            )
+
+            # append data to parent
+            current_node._values = this
+
+            if current_direction == 'right':
+                # found terminal node
+                # # GO UP UNTIL CAN GO RIGHT
+                while stack and stack[-1][1] == 'right':
+                    ancestor_tree, ancestor_direction = stack.pop()
+                    ancestor_tree._values = combine_branches(
+                        ancestor_tree.left._values,
+                        ancestor_tree.right._values
+                    )
+                    ancestor_tree.left._values = None
+                    ancestor_tree.right._values = None
+
+                if not stack:
+                    # arrived at root node
+                    break
+
+            # pop left node -> go right next
+            stack.pop()
+
+        else:
+            stack.extend([(current_node, 'right'), (current_node, 'left')])
+
+    values = tree._values
+    tree._values = None
 
     max_contr = values[:, 0, :].max(axis=1)
     max_suppo = values[:, 1, :].max(axis=1)
