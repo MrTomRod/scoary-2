@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from functools import cached_property
 from typing import Optional, Callable
 
 import numpy as np
@@ -61,34 +62,48 @@ class ScoaryTree:
     def to_newick(self) -> str:
         return f'{self};'
 
+    def write_newick(self, path: str):
+        with open(path, 'w') as f:
+            f.write(self.to_newick())
+
     def labels(self) -> [str]:
         if self.is_leaf:
             return [self.label]
         else:
             return self.left.labels() + self.right.labels()
 
-    def copy(self):
-        def copy(scoary_tree: ScoaryTree) -> ScoaryTree:
-            if scoary_tree.is_leaf:
-                return ScoaryTree(label=scoary_tree.label)
+    def uniquify(self, label_to_trait: {str: bool}):
+        def uniquify(tree: ScoaryTree) -> str:
+            if tree.is_leaf:
+                return '1' if label_to_trait[tree.label] else '0'
             else:
-                return ScoaryTree(left=copy(scoary_tree.left), right=copy(scoary_tree.right))
+                l, r = uniquify(tree.left), uniquify(tree.right)
+                return f'({l}{r})' if l < r else f'({r}{l})'
+
+        return uniquify(self)
+
+    def copy(self):
+        def copy(tree: ScoaryTree) -> ScoaryTree:
+            if tree.is_leaf:
+                return ScoaryTree(label=tree.label)
+            else:
+                return ScoaryTree(left=copy(tree.left), right=copy(tree.right))
 
         return copy(self)
 
     def prune(self, labels: [str]) -> ScoaryTree:
         n_labels_found = 0
 
-        def prune(scoary_tree: ScoaryTree) -> Optional[ScoaryTree]:
-            if scoary_tree.is_leaf:
-                if scoary_tree.label in labels:
+        def prune(tree: ScoaryTree) -> Optional[ScoaryTree]:
+            if tree.is_leaf:
+                if tree.label in labels:
                     nonlocal n_labels_found
                     n_labels_found += 1
-                    return ScoaryTree(label=scoary_tree.label)
+                    return ScoaryTree(label=tree.label)
                 else:
                     return None
             else:
-                left, right = prune(scoary_tree.left), prune(scoary_tree.right)
+                left, right = prune(tree.left), prune(tree.right)
                 if left and right:
                     return ScoaryTree(left=left, right=right)
                 if left:
@@ -99,8 +114,10 @@ class ScoaryTree:
 
         pruned_tree = prune(self)
 
-        assert n_labels_found == len(
-            labels), f'Pruning went wrong: did not find all labels in tree! {n_labels_found=}; {labels=}; tree={self}'
+        if n_labels_found != len(labels):
+            missing = set(labels).difference(set(self.labels()))
+            raise AssertionError(f'Pruning went wrong: did not find all labels in tree! '
+                                 f'{n_labels_found=}; {missing=}; tree={self}')
 
         return pruned_tree
 
@@ -214,12 +231,12 @@ class ScoaryTree:
         Only used for debugging. This recursive function could cause RecursionError for big trees.
         """
 
-        def convert(scoary_tree: ScoaryTree) -> ScoaryTree:
+        def convert(tree: ScoaryTree) -> ScoaryTree:
             """recursive function"""
-            if scoary_tree.is_leaf:
-                return ScoaryTree(label=func(scoary_tree.label))
+            if tree.is_leaf:
+                return ScoaryTree(label=func(tree.label))
             else:
-                return ScoaryTree(left=convert(scoary_tree.left), right=convert(scoary_tree.right))
+                return ScoaryTree(left=convert(tree.left), right=convert(tree.right))
 
         return convert(self)
 
@@ -239,11 +256,15 @@ class ScoaryTree:
 
         return convert(tree)
 
+    @cached_property
     def to_list(self) -> []:
-        if self.is_leaf:
-            return self.label
-        else:
-            return [self.left.to_list(), self.right.to_list()]
+        def to_list(tree: ScoaryTree) -> str | []:
+            if tree.is_leaf:
+                return tree.label
+            else:
+                return [to_list(tree.left), to_list(tree.right)]
+
+        return to_list(self)
 
     @classmethod
     def from_presence_absence(cls, genes_df: pd.DataFrame) -> ScoaryTree:
@@ -267,128 +288,3 @@ class ScoaryTree:
             self.is_leaf = self.left.is_leaf
             self.right = self.left.right
             self.left = self.left.left
-
-# def _pick(
-#         pairs_to_pick: [(bool, bool)],
-#         left_pairings: {(bool, bool): ScoaryTree},
-#         right_pairings: {(bool, bool): ScoaryTree}
-# ) -> Optional[(ScoaryTree, ScoaryTree)]:
-#     for pair in pairs_to_pick:
-#         antipair = (not pair[0], not pair[1])
-#         if pair in left_pairings and antipair in right_pairings:
-#             return left_pairings[pair], right_pairings[antipair]
-#     return None  # found no such pairing
-#
-# def pick_contrasting(left_pairings: {(bool, bool): ScoaryTree}, right_pairings: {(bool, bool): ScoaryTree}) -> Optional[(ScoaryTree, ScoaryTree)]:
-#     return _pick([(True, True), (False, False), (True, False), (False, True)], left_pairings, right_pairings)
-#
-#
-# def pick_supporting(left_pairings, right_pairings) -> Optional[(ScoaryTree, ScoaryTree)]:
-#     return _pick([(True, True), (False, False)], left_pairings, right_pairings)
-#
-#
-# def pick_opposing(left_pairings, right_pairings) -> Optional[(ScoaryTree, ScoaryTree)]:
-#     return _pick([(True, False), (False, True)], left_pairings, right_pairings)
-#
-#
-# def count_max_pairings(tree: ScoaryTree, label_to_trait: {str: bool}, label_to_gene: {str: bool}, type: str) -> int:
-#     if type == 'contrasting':
-#         pick = pick_contrasting
-#     elif type == 'supporting':
-#         pick = pick_supporting
-#     elif type == 'opposing':
-#         pick = pick_opposing
-#     else:
-#         raise AssertionError(f"{type=} not in ('contrasting', 'supporting', 'opposing')")
-#
-#     n_picks = 0
-#
-#     logger.info(f'## pick {type} pairs')
-#
-#     def pick_pairings(scoary_tree: ScoaryTree) -> {(bool, bool): ScoaryTree}:
-#         if scoary_tree.is_leaf:
-#             return {(label_to_gene[scoary_tree.label], label_to_trait[scoary_tree.label]): scoary_tree}
-#         else:
-#             left_pairings = pick_pairings(scoary_tree.left)
-#             right_pairings = pick_pairings(scoary_tree.right)
-#             pair = pick(left_pairings, right_pairings)
-#             if pair is not None:
-#                 logger.info(f"{type} pick: {pair}")
-#                 nonlocal n_picks
-#                 n_picks += 1
-#                 return {}
-#             else:
-#                 return left_pairings | right_pairings
-#
-#     pick_pairings(tree)
-#
-#     return n_picks
-#
-#
-# def count_sup_op(tree: ScoaryTree, label_to_trait: {str: bool}, label_to_gene: {str: bool}) -> (int, int):
-#     n_sup = 0
-#     n_opp = 0
-#
-#     logger.info(f'## pick count_sup_op pairs')
-#
-#     def pick_pairings(scoary_tree: ScoaryTree) -> {(bool, bool): ScoaryTree}:
-#         if scoary_tree.is_leaf:
-#             return {(label_to_gene[scoary_tree.label], label_to_trait[scoary_tree.label]): scoary_tree}
-#         else:
-#             left_pairings = pick_pairings(scoary_tree.left)
-#             right_pairings = pick_pairings(scoary_tree.right)
-#             supp_pair = pick_supporting(left_pairings, right_pairings)
-#             if supp_pair is not None:
-#                 logger.info(f"supp pick: {supp_pair}")
-#                 nonlocal n_sup
-#                 n_sup += 1
-#                 return {}
-#             else:
-#                 opp_pair = pick_opposing(left_pairings, right_pairings)
-#                 if opp_pair is not None:
-#                     logger.info(f"opp pick: {opp_pair}")
-#                     nonlocal n_opp
-#                     n_opp += 1
-#                     return {}
-#                 else:
-#                     return left_pairings | right_pairings
-#
-#     pick_pairings(tree)
-#
-#     return n_sup, n_opp
-#
-#
-# def count_best_worst(tree: ScoaryTree, label_to_trait: {str: bool}, label_to_gene: {str: bool}) -> (int, int):
-#     n_best = 0
-#     n_worst = 0
-#
-#     logger.info(f'## pick count_sup_op pairs')
-#
-#     def pick_pairings(scoary_tree: ScoaryTree) -> {(bool, bool): ScoaryTree}:
-#         if scoary_tree.is_leaf:
-#             return {(label_to_gene[scoary_tree.label], label_to_trait[scoary_tree.label]): scoary_tree}
-#         else:
-#             left_pairings = pick_pairings(scoary_tree.left)
-#             right_pairings = pick_pairings(scoary_tree.right)
-#
-#             supp_pair = pick_supporting(left_pairings, right_pairings)
-#             opp_pair = pick_opposing(left_pairings, right_pairings)
-#
-#             if supp_pair is None and opp_pair is None:
-#                 return left_pairings | right_pairings
-#
-#             if supp_pair is not None:
-#                 logger.info(f"supp pick: {supp_pair}")
-#                 nonlocal n_best
-#                 n_best += 1
-#
-#             if opp_pair is not None:
-#                 logger.info(f"opp pick: {opp_pair}")
-#                 nonlocal n_worst
-#                 n_worst += 1
-#
-#             return {}
-#
-#     pick_pairings(tree)
-#
-#     return n_best, n_worst

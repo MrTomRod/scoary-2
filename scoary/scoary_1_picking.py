@@ -412,6 +412,8 @@ def permute_gtc(GTC):
     """
     Returns a permutation of the gene-trait combination dic where trait
     labels have been swapped
+
+    ISOLATE KEEP GENES, GET PERMUTED TRAITS. TOTAL NUMBER OF TRAITS REMAINS
     """
     # Set of trait labels to distribute
     trait_labels = [s[-1] for s in GTC.values()]

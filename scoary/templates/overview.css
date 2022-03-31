@@ -1,0 +1,56 @@
+/*#popoverTable, th , td{*/
+/*    width: 100%;*/
+/*    border: 1px solid;*/
+/*}*/
+
+.left {
+    /*float: left;*/
+}
+
+.right {
+    float: right
+}
+
+.right-container {
+    pointer-events: none;
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 100%;
+    padding-right: var(--bs-gutter-x, .75rem);
+    padding-left: var(--bs-gutter-x, .75rem);
+    margin-right: auto;
+    margin-left: auto;
+}
+
+/* imitate bootstrap container shrinking */
+@media (min-width: 576px) {
+    .right-container {
+        max-width: 540px;
+    }
+}
+
+@media (min-width: 768px) {
+    .right-container {
+        max-width: 720px;
+    }
+}
+
+@media (min-width: 992px) {
+    .right-container {
+        max-width: 960px;
+    }
+}
+
+
+@media (min-width: 1200px) {
+    .right-container {
+        max-width: 1140px;
+    }
+}
+
+@media (min-width: 1400px) {
+    .right-container {
+        max-width: 1320px;
+    }
+}

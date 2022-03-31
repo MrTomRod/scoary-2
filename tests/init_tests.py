@@ -1,7 +1,7 @@
 import json
 import numpy as np
 import pandas as pd
-from os.path import dirname
+from os.path import dirname, exists
 from scipy.spatial import distance
 from scipy.stats import fisher_exact, boschloo_exact
 from ete3 import Tree as EteTree
@@ -24,6 +24,7 @@ DATA = {
     'tetracycline': {
         'genes': 'Gene_presence_absence.csv',
         'traits': 'Tetracycline_resistance.csv',
+        'traits-numeric': 'Tetracycline_resistance_numeric.csv',
         'restrict_to': 'Restrict_to.csv',
         'tree': 'ExampleTree.nwk',
         'treelist': 'expected_result.json',
@@ -38,6 +39,17 @@ DATA = {
     },
     'bigger_ds': {
         'traits': 'trait_trees.csv',
+    },
+    'new_ds': {
+        'genes-og': 'Orthogroups.tsv',
+        'genes-hog': 'N0.tsv',
+        'genes-hog-info': 'N0_best_names.tsv',
+        'isolate-meta': 'isolate-meta.tsv',
+        'traits-lc-binary': 'LC-binary.tsv',
+        'traits-lc': 'LC.tsv',
+        'traits-lc-meta': 'LC-meta.tsv',
+        'traits-gc-vol': 'GC-VOL.tsv',
+        'traits-gc-vol-meta': 'none-meta.tsv',
     }
 }
 for tree_id in range(5):
@@ -51,6 +63,10 @@ VCF_DATA = {
         'traits': 'ExampleVCFTrait.csv'
     }
 }
+
+tetr_ignore = ['Non-unique Gene name', 'Annotation', 'No. isolates', 'No. sequences', 'Avg sequences per isolate',
+               'Genome fragment', 'Order within fragment', 'Accessory Fragment', 'Accessory Order with Fragment', 'QC',
+               'Min group size nuc', 'Max group size nuc', 'Avg group size nuc']
 
 
 def get_path(ds: str, key: str, data=DATA):
@@ -86,3 +102,18 @@ def print_tree_for_debugging(scoary_tree, label_to_gene, label_to_trait):
     ete_tree = EteTree(renamed_tree.to_newick())
     print(ete_tree)
     print(renamed_tree.to_newick())
+
+
+def get_tempdir_path() -> str:
+    # template = '/tmp/scoary-test-outdir-{i}'
+    # i = 0
+    # while exists(template.format(i=i)):
+    #     i += 1
+    #
+    # tempdir_path = template.format(i=i)
+
+    tempdir_path = '/home/thomas/PycharmProjects/scoary-2/TEST_OUTPUT'
+
+    logging.warning(f'Using this tempdir: file://{tempdir_path}')
+
+    return tempdir_path

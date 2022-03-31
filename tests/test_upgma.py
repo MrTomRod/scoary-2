@@ -34,7 +34,7 @@ class Test(TestCase):
         labels = [f'l{i}' for i in range(5)]
 
         _biotite_tree = _biotite_upgma(distances)
-        biotite_tree = biotite_upgma(_biotite_tree, labels=labels).to_list()
+        biotite_tree = biotite_upgma(_biotite_tree, labels=labels).to_list
 
         distances_df = pd.DataFrame(distances, columns=labels)
         scoary_tree = scoary_upgma(distances_df)
@@ -56,7 +56,7 @@ class Test(TestCase):
             scoary_tree = scoary_upgma(distances_df)
 
             _biotite_tree = _biotite_upgma(symmetrical_matrix)
-            biotite_tree = biotite_upgma(_biotite_tree, labels=labels).to_list()
+            biotite_tree = biotite_upgma(_biotite_tree, labels=labels).to_list
 
             if not is_equivalent_tree(biotite_tree, scoary_tree):
                 print('no match:')

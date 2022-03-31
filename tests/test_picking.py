@@ -1,7 +1,7 @@
 from .init_tests import *
 from typing import Any, Callable
 
-from scoary.scoary import load_genes, load_traits
+from scoary.scoary import *
 from scoary.ScoaryTree import ScoaryTree
 from scoary.picking import pick, pick_nonrecursive
 
@@ -70,46 +70,10 @@ dummy_trait_b_df = pd.DataFrame(
 
 
 class Test(TestCase):
-    def test_identical(self):
-        print('SCOARY 1')
+    def test_simple(self):
         mc_1, ms_1, mo_1 = scoary_1_pick(tree=dummy_tree, label_to_trait_a=dummy_trait_a, trait_b_df=dummy_trait_b_df)
-        print('SCOARY 2')
         mc_2, ms_2, mo_2 = pick(tree=dummy_tree, label_to_trait_a=dummy_trait_a, trait_b_df=dummy_trait_b_df,
                                 calc_pvals=False)
-        print('SCOARY 2 nonrecursive')
-        mc_3, ms_3, mo_3 = pick_nonrecursive(tree=ScoaryTree.from_list(dummy_tree), label_to_trait_a=dummy_trait_a,
-                                             trait_b_df=dummy_trait_b_df,
-                                             calc_pvals=False)
-
-        self.assertTrue(all(np.equal(mc_1, mc_2)), msg='contrasting')
-        self.assertTrue(all(np.equal(ms_1, ms_2)), msg='supporting')
-        self.assertTrue(all(np.equal(mo_1, mo_2)), msg='opposing')
-        self.assertTrue(all(np.equal(mc_1, mc_3)), msg='contrasting')
-        self.assertTrue(all(np.equal(ms_1, ms_3)), msg='supporting')
-        self.assertTrue(all(np.equal(mo_1, mo_3)), msg='opposing')
-
-    def test_time(self):
-        pick(tree=dummy_tree, label_to_trait_a=dummy_trait_a, trait_b_df=dummy_trait_b_df, calc_pvals=False)
-
-        print('SCOARY 1')
-        time_1, res = time_fn(
-            scoary_1_pick,
-            kwargs=dict(tree=dummy_tree, label_to_trait_a=dummy_trait_a, trait_b_df=dummy_trait_b_df),
-            n_times=1000
-        )
-        mc_1, ms_1, mo_1 = res
-
-        print('SCOARY 2')
-        time_2, res = time_fn(
-            pick,
-            kwargs=dict(tree=dummy_tree, label_to_trait_a=dummy_trait_a, trait_b_df=dummy_trait_b_df,
-                        calc_pvals=False),
-            n_times=1000
-        )
-        mc_2, ms_2, mo_2 = res
-
-        print(time_1, time_2)
-        print(time_1 / time_2, 'x improvement')
 
         self.assertTrue(all(np.equal(mc_1, mc_2)), msg='contrasting')
         self.assertTrue(all(np.equal(ms_1, ms_2)), msg='supporting')
@@ -120,8 +84,9 @@ class Test(TestCase):
         from tests.init_tests import get_json, get_path
 
         tetr_tree = get_json('tetracycline', 'treelist')['as_list']
-        tetr_genes_df = load_genes(get_path('tetracycline', 'genes'), delimiter=',', start_col=13)
-        tetr_traits_df = load_traits(get_path('tetracycline', 'traits'), delimiter=',')
+        _, tetr_genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count',
+                                      ignore=tetr_ignore)
+        _, tetr_traits_df = load_traits(get_path('tetracycline', 'traits'), delimiter=',')
 
         tetr_label_to_gene = tetr_traits_df['Tetracycline_resistance'].to_dict()
 
@@ -144,7 +109,7 @@ class Test(TestCase):
             pick,
             kwargs=dict(tree=tetr_tree, label_to_trait_a=tetr_label_to_gene, trait_b_df=tetr_genes_df,
                         calc_pvals=False),
-            n_times=10
+            n_times=20
         )
         mc_2, ms_2, mo_2 = res
 
@@ -162,8 +127,9 @@ class Test(TestCase):
         from tests.init_tests import get_json, get_path
 
         tetr_tree = ScoaryTree.from_list(get_json('tetracycline', 'treelist')['as_list'])
-        tetr_genes_df = load_genes(get_path('tetracycline', 'genes'), delimiter=',', start_col=13)
-        tetr_traits_df = load_traits(get_path('tetracycline', 'traits'), delimiter=',')
+        _, tetr_genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count',
+                                      ignore=tetr_ignore)
+        _, tetr_traits_df = load_traits(get_path('tetracycline', 'traits'), delimiter=',')
 
         tetr_label_to_gene = tetr_traits_df['Tetracycline_resistance'].to_dict()
 
@@ -186,7 +152,7 @@ class Test(TestCase):
             pick_nonrecursive,
             kwargs=dict(tree=tetr_tree, label_to_trait_a=tetr_label_to_gene, trait_b_df=tetr_genes_df,
                         calc_pvals=False),
-            n_times=10
+            n_times=20
         )
         mc_2, ms_2, mo_2 = res
 
@@ -218,7 +184,7 @@ class Test(TestCase):
         print_tree_for_debugging(scoary_tree, label_to_gene, label_to_trait)
 
         res = pick(
-            scoary_tree.to_list(),
+            scoary_tree.to_list,
             label_to_trait_a=label_to_trait,
             trait_b_df=pd.DataFrame(label_to_gene, index=['fakegene']),
             calc_pvals=False
@@ -235,9 +201,9 @@ class Test(TestCase):
         self.assertEqual(1, max_opposing, msg='max_opposing of pairs failed')
 
     def test_pairs_scoary1(self):
-        genes_df = load_genes(get_path('tetracycline', 'genes'), delimiter=',', start_col=13)
-        traits_df = load_traits(get_path('tetracycline', 'traits'), delimiter=',')
-        scoary1_res_df = pd.read_csv(get_path('tetracycline', 'scoary1-result'))
+        _, genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count', ignore=tetr_ignore)
+        _, traits_df = load_traits(get_path('tetracycline', 'traits'), delimiter=',')
+        expected_result = pd.read_csv(get_path('tetracycline', 'scoary1-result'))
 
         scoary_tree = ScoaryTree.from_presence_absence(genes_df)
         label_to_trait = traits_df.Tetracycline_resistance.apply(bool).to_dict()
@@ -245,19 +211,18 @@ class Test(TestCase):
         assert set(scoary_tree.labels()) == set(traits_df.index)
         assert not traits_df.Tetracycline_resistance.hasnans
 
-        for i, row in scoary1_res_df[10:].iterrows():
+        for i, row in expected_result.iterrows():
             gene = row.Gene
             old_max_comparisons = row.Max_Pairwise_comparisons
             old_max_supporting = row.Max_supporting_pairs
             old_max_opposing = row.Max_opposing_pairs
-            old_odds_ratio = row.Odds_ratio
             old_best = row.Best_pairwise_comp_p
             old_worst = row.Worst_pairwise_comp_p
 
             label_to_gene = genes_df.loc[gene].apply(bool).to_dict()
 
             res = pick(
-                scoary_tree.to_list(),
+                scoary_tree.to_list,
                 label_to_trait_a=label_to_trait,
                 trait_b_df=pd.DataFrame(label_to_gene, index=['fakegene']),
                 calc_pvals=True
@@ -274,5 +239,50 @@ class Test(TestCase):
             for comparison, (old, new) in comparisons.items():
                 if not np.isclose(old, new):
                     print(gene, comparison, old, new, scoary_tree)
+                    print_tree_for_debugging(scoary_tree, label_to_gene, label_to_trait)
+                    self.fail(msg=f'Disagreement between Scoary1 and Scoary2')
+
+    def test_scoary1_generated(self):
+        # _, genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count', ignore=tetr_ignore)
+        # traits_df = load_traits(get_path('tetracycline', 'traits'), delimiter=',')
+        # label_to_trait = traits_df['Tetracycline_resistance'].apply(bool).to_dict()
+        # expected_result = pd.read_csv(get_path('tetracycline', 'scoary1-result'))
+
+        ds_name, trait_name, tree_id = 'bigger_ds', 't1', 1
+        _, genes_df = load_genes(get_path(ds_name, f'genes-{tree_id}'), 'gene-count:,')
+        _, traits_df = load_traits(get_path(ds_name, 'traits'), delimiter=',')
+        label_to_trait = traits_df[trait_name].apply(bool).to_dict()
+        expected_result = pd.read_csv(get_path(ds_name, f'{trait_name}-{tree_id}'))
+
+        scoary_tree = ScoaryTree.from_presence_absence(genes_df)
+        result_df = init_result_df(genes_df, label_to_trait)
+        result_df = pair_picking(result_df, genes_df, scoary_tree, label_to_trait)
+
+        assert set(scoary_tree.labels()) == set(traits_df.index)
+
+        for i, row in expected_result.sample(frac=1, random_state=42).iterrows():
+            gene = row.Gene
+            print(gene)
+            old_max_comparisons = row.Max_Pairwise_comparisons
+            old_max_supporting = row.Max_supporting_pairs
+            old_max_opposing = row.Max_opposing_pairs
+            old_best = row.Best_pairwise_comp_p
+            old_worst = row.Worst_pairwise_comp_p
+
+            new_row = result_df[result_df['Gene'] == gene].iloc[0]
+
+            comparisons = {
+                'max_comparisons': (old_max_comparisons, new_row.contrasting),
+                'max_supporting': (old_max_supporting, new_row.supporting),
+                'max_opposing': (old_max_opposing, new_row.opposing),
+                'best': (old_best, new_row.best),
+                'worst': (old_worst, new_row.worst),
+            }
+
+            for comparison, (old, new) in comparisons.items():
+                if not np.isclose(old, new):
+                    print(f'Error on {gene=} / {comparison=}')
+                    print(comparisons)
+                    label_to_gene = genes_df.loc[gene].apply(bool).to_dict()
                     print_tree_for_debugging(scoary_tree, label_to_gene, label_to_trait)
                     self.fail(msg=f'Disagreement between Scoary1 and Scoary2')
