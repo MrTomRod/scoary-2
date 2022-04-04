@@ -12,18 +12,17 @@ from matplotlib.collections import PatchCollection, QuadMesh
 from matplotlib.patches import Rectangle
 from matplotlib.colors import LogNorm
 
-from .utils import MockNamespace, RecursionLimit, ROOT_DIR
+from .utils import MockNamespace, ROOT_DIR
 
 
 def plot_dendrogram(linkage_matrix: np.ndarray, labels: [str], ax: Axes) -> {}:
-    with RecursionLimit(len(linkage_matrix) ** 2 + 100):
-        dendrogram_params = hierarchy.dendrogram(
-            linkage_matrix,
-            orientation='left',
-            labels=labels,
-            no_labels=True,
-            ax=ax
-        )
+    dendrogram_params = hierarchy.dendrogram(
+        linkage_matrix,
+        orientation='left',
+        labels=labels,
+        no_labels=True,
+        ax=ax
+    )
 
     ax.set_xlim([1, 0])
     ax.tick_params(
@@ -116,14 +115,16 @@ def save_colorbars(pcms: [QuadMesh], cols: [str], out: str = None):
     plt.close()
 
 
-def create_final_overview(overview_ds: pd.DataFrame, ns: MockNamespace):
-    # TODO: JACCARD MUST BE MINIMAL DISTANCE when inverted
+def create_final_overview(overview_ds: pd.DataFrame, ns: MockNamespace, isolate_info_df: pd.DataFrame = None):
+    # add isolate info
+    if isolate_info_df is not None:
+        isolate_info_df.to_csv(f'{ns.outdir}/isolate_info.tsv', sep='\t')
 
     # prepare data, create linkage_matrix
     pre_jaccard = ns.traits_df[overview_ds.index].astype('float').T
     pre_jaccard = ((pre_jaccard.fillna(0.5) * 2) - 1).astype('int')  # False -> -1, NAN -> 0, True -> 1
 
-    # 1 and 0 are arbitrary. Calculate both possibilities, take minimum
+    # whether class=0 and class=1 are arbitrary. Calculate both possibilities, take minimum
     d1 = cdist(pre_jaccard, pre_jaccard, metric='jaccard')
     d2 = cdist(pre_jaccard, 0 - pre_jaccard, metric='jaccard')
     jaccard_distance = np.minimum(d1, d2)
@@ -184,4 +185,4 @@ def create_final_overview(overview_ds: pd.DataFrame, ns: MockNamespace):
     save_colorbars(pcms, [c.removeprefix('min_') for c in cols], out=f'{ns.outdir}/overview_colorbar.svg')
 
     # save overview_ds (reversed index, so the order matches the plot)
-    overview_ds[::-1].to_csv(f'{ns.outdir}/overview_ds.tsv', sep='\t')
+    overview_ds[::-1].to_csv(f'{ns.outdir}/overview.tsv', sep='\t')

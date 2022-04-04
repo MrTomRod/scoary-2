@@ -1,5 +1,4 @@
-import logging
-
+from scoary.progressbar import print_progress
 from .utils import *
 from .ScoaryTree import ScoaryTree
 from .load_genes import load_genes
@@ -38,7 +37,7 @@ def scoary(
 
     assert n_permut == 0 or n_permut >= 100, f'{n_permut=} must be at least 100.'
 
-    # load data  (numeric_df may be None)
+    # load traits data  (numeric_df may be None)
     numeric_df, traits_df = load_traits(
         traits=traits,
         trait_data_type=trait_data_type,
@@ -46,21 +45,39 @@ def scoary(
         ignore=ignore,
         random_state=random_state
     )
+
+    # dynamically set recursion limit, should work for ~ 13'000 isolates
+    _recursion_limit = 100 + len(traits_df.index) ** 2
+    logger.warning(f'Setting recursion limit to {_recursion_limit}')
+    sys.setrecursionlimit(_recursion_limit)
+
+    # load traits info
     trait_info_df = load_info_file(
         logger=logger, info_file=trait_info, merge_col='Trait',
         expected_overlap_set=set(traits_df.columns), reference_file=traits
     ) if trait_info else None
 
+    # load genes data
     genes_orig_df, genes_bool_df = load_genes(
         genes,
         gene_data_type=gene_data_type,
         restrict_to=traits_df.index,
     )
-    all_label_to_gene = get_all_label_to_gene(genes_bool_df)  # {gene: {label: bool})
+
+    # load genes info
     gene_info_df = load_info_file(
         logger=logger, info_file=gene_info, merge_col='Gene',
         expected_overlap_set=set(genes_bool_df.index), reference_file=genes
     ) if gene_info else None
+
+    # load isolate info
+    isolate_info_df = load_info_file(
+        logger=logger, info_file=isolate_info, merge_col='Isolate',
+        expected_overlap_set=set(genes_bool_df.columns), reference_file='placeholder'
+    ) if isolate_info else None
+
+    # create convenient dictionary: {gene: {label: bool})
+    all_label_to_gene = get_all_label_to_gene(genes_bool_df)
 
     # load phylogeny
     if newicktree is None:
@@ -74,10 +91,6 @@ def scoary(
     all_labels = set(tree.labels())
 
     duplication_df = create_duplication_df(traits_df)
-
-    # todo: remove this
-    traits_df = traits_df[traits_df.columns[:18]]  # todo: remove this
-    # todo: remove this
 
     if threads > 1:
         from .init_multiprocessing import mp, ns, counter, lock
@@ -106,9 +119,14 @@ def scoary(
     else:
         res = [analyze_trait(trait, ns) for trait in traits]
 
+    print_progress(
+        len(ns.traits_df.columns), len(ns.traits_df.columns),
+        message='COMPLETE!', start_time=ns.start_time, message_width=25,
+        end='\n'
+    )
     overview_ds = create_final_overview_df(traits, res)
-
-    create_final_overview(overview_ds, ns)
+    if overview_ds is not None and len(overview_ds) >= 2:
+        create_final_overview(overview_ds, ns, isolate_info_df)
 
     print(CITATION)
 

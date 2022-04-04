@@ -52,6 +52,8 @@ class Test(TestCase):
 
         a = np.array([[0, 0, 0, 0, 0, 0, 1, 0, -1, 0],
                       [1, 0, 0, -1, 1, 0, 0, -1, 0, 0],
+                      [1, 1, 1, 1, 1, 1, 1, 0, 0, 0, ],
+                      [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, ],
                       [1, 1, 1, -1, 1, 1, 1, 1, 1, 1]], dtype=int)
         print('input:\n', a)
 
@@ -95,10 +97,10 @@ class Test(TestCase):
             # print(a)
             # print('b')
             # print(b)
-            print('d1')
-            print(d1)
-            print('d2')
-            print(d2)
+            # print('d1')
+            # print(d1)
+            # print('d2')
+            # print(d2)
             print('d')
             print(d)
 

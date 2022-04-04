@@ -154,7 +154,7 @@ def save_result_df(trait: str, ns: MockNamespace, result_df: pd.DataFrame):
         json.dump(meta_data, f, indent=4)
 
     coverage_matrix = ns.genes_orig_df[ns.genes_orig_df.index.isin(result_df.Gene)].T
-    coverage_matrix.index.name = 'isolate'
+    coverage_matrix.index.name = 'Isolate'
     coverage_matrix.to_csv(f'{ns.outdir}/traits/{trait}/coverage-matrix.tsv', sep='\t')
     _save_trait(trait, ns)
 

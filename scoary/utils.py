@@ -243,7 +243,7 @@ class MockNamespace:
     no_pairwise: bool
 
 
-def create_namespace(ns: MockNamespace, counter: MockCounter, lock: MockLock, outdir: str,
+def create_namespace(ns, counter, lock, outdir,
                      genes_orig_df, genes_bool_df, gene_info_df,
                      numeric_df, traits_df, trait_info_df,
                      duplication_df, tree, all_labels,

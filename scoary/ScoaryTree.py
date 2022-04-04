@@ -54,13 +54,16 @@ class ScoaryTree:
             self.right = right
 
     def __str__(self) -> str:
-        return self.label if self.is_leaf else f"({self.left},{self.right})"
+        return self._newick()
 
     def __repr__(self):
         return str(self)
 
+    def _newick(self):
+        return self.label if self.is_leaf else f"({self.left._newick()},{self.right._newick()})"
+
     def to_newick(self) -> str:
-        return f'{self};'
+        return f'{self._newick()};'
 
     def write_newick(self, path: str):
         with open(path, 'w') as f:

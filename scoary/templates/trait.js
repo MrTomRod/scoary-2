@@ -1,5 +1,6 @@
 "use strict"
 
+
 const colorDict = {
     'g+t+': '#1f78b4',
     'g+t-': '#a6cee3',
@@ -8,6 +9,7 @@ const colorDict = {
     'g-t-': '#33a02c',
     'g-t?': '#edffdf',
 }
+const sanitizeGenes = true
 
 
 let _domResolve
@@ -101,6 +103,21 @@ Promise.all([tablePromise, documentReadyPromise]).then(([tableData, _]) => {
     })
 })
 
+// load isolate information
+const isolateInfoPromise = Papa.execPromise('isolate_info.tsv', {
+    header: true, download: true, skipEmptyLines: true, delimiter: '\t', newline: '\n',
+}).then(tableData => {
+    // Preprocess data
+    tableData.columns = tableData.meta.fields.map(col => {
+        return {'data': col, 'label': col, 'title': col}
+    })
+    tableData.index = tableData['data'].map(col => col['Isolate'])
+    return tableData
+}).catch(() => {
+    console.log('no isolate info')
+    return 'no isolate info'
+})
+
 // Load coverage matrix data
 const coverageMatrixDataPromise = Papa.execPromise(`traits/${trait}/coverage-matrix.tsv`, {
     header: true, download: true, skipEmptyLines: true, delimiter: '\t', newline: '\n',
@@ -125,80 +142,163 @@ const sanitizeData = function (data) {
 }
 
 // combine values.tsv and coverage_matrix.tsv, sanitize columns
-const coverageMatrixPromise = Promise.all([coverageMatrixDataPromise, valuesPromise, metaPromise, documentReadyPromise])
-    .then(([cmValues, valuesData, metaData, _]) => {
-        // sanitize columns: may not contain dot or whitespace -.-
-        const deSanitizeDict = Object.fromEntries(cmValues.meta.fields.map(oldKey => [sanitizeKey(oldKey), oldKey]))
-        deSanitizeDict['isolate'] = 'Isolate'
-        deSanitizeDict['class'] = 'Class'
-        deSanitizeDict['value'] = 'Value'
-        cmValues.isNumeric = valuesData.isNumeric
-        cmValues.data = sanitizeData(cmValues.data)
-        cmValues.meta.fields = cmValues.meta.fields.map(k => sanitizeKey(k))
-        const isolates = cmValues.meta.fields.slice(1)  // remove index
+const coverageMatrixPromise = Promise.all(
+    [coverageMatrixDataPromise, valuesPromise, metaPromise, isolateInfoPromise, documentReadyPromise]
+).then(([cmValues, valuesData, metaData, isolateInfo, _]) => {
+    // sanitize columns: may not contain dot or whitespace -.-
+    const deSanitizeDict = Object.fromEntries(cmValues.meta.fields.map(oldKey => [sanitizeKey(oldKey), oldKey]))
+    deSanitizeDict['Isolate'] = 'Isolate'
+    deSanitizeDict['class'] = 'Class'
+    deSanitizeDict['value'] = 'Value'
+    cmValues.isNumeric = valuesData.isNumeric
+    cmValues.data = sanitizeData(cmValues.data)
+    cmValues.meta.fields = cmValues.meta.fields.map(k => sanitizeKey(k))
+    const genes = cmValues.meta.fields.slice(1)  // remove index
 
-        // convert gene list to count matrix
-        cmValues.isGeneList = (metaData['genes-content-type'] === 'gene-list')
-        if (cmValues.isGeneList) {
-            // convert csv to array: 'gene1,gene2' => ['gene1', 'gene2']
-            const geneList = cmValues.data
-            for (const d of geneList) {
-                for (const i of isolates) {
-                    d[i] = (d[i] === '') ? [] : d[i].split(',')
-                }
+    // convert gene list to count matrix
+    cmValues.isGeneList = (metaData['genes-content-type'] === 'gene-list')
+    if (cmValues.isGeneList) {
+        // convert csv to array: 'gene1,gene2' => ['gene1', 'gene2']
+        const geneList = cmValues.data
+        for (const d of geneList) {
+            for (const i of genes) {
+                d[i] = (d[i] === '') ? [] : d[i].split(',')
             }
-            cmValues.geneList = geneList
+        }
+        cmValues.geneList = geneList
 
-            // convert gene list to gene  count: ['gene1', 'gene2'] => 2
-            const geneCount = []
-            for (const d of geneList) {
-                const dd = {...d}
-                for (const i of isolates) {
-                    dd[i] = dd[i].length.toString()
-                }
-                geneCount.push(dd)
+        // convert gene list to gene  count: ['gene1', 'gene2'] => 2
+        const geneCount = []
+        for (const d of geneList) {
+            const dd = {...d}
+            for (const i of genes) {
+                dd[i] = dd[i].length.toString()
             }
-
-            cmValues.data = geneCount
+            geneCount.push(dd)
         }
 
-        // add class column
-        cmValues.meta.fields.push('class')
-        for (const isolateData of cmValues.data) {
-            isolateData['class'] = valuesData.isolateToClass[isolateData['isolate']]
-        }
+        cmValues.data = geneCount
+    }
 
-        // add values column
-        if (valuesData.isNumeric) {
-            cmValues.meta.fields.push('value')
+
+    // add isolate information
+    if (isolateInfo !== 'no isolate info') {
+        for (const col of isolateInfo.meta.fields.slice(1)) {
+            const sanitizedCol = sanitizeKey(col)
+            deSanitizeDict[sanitizedCol] = col
+            cmValues.meta.fields.push(sanitizedCol)
             for (const isolateData of cmValues.data) {
-                isolateData['value'] = valuesData.isolateToValue[isolateData['isolate']]
+                const isolateIndex = isolateInfo.index.indexOf(isolateData['Isolate'])
+                if (isolateIndex === -1) {
+                    isolateData[sanitizedCol] = ''// no data for this isolate in the table
+                } else {
+                    isolateData[sanitizedCol] = isolateInfo.data[isolateIndex][col]
+                }
             }
         }
+    }
 
-        cmValues.isolates = isolates
-        cmValues.deSanitizeDict = deSanitizeDict
-        cmValues.index = cmValues.data.map(col => col['isolate'])
-        cmValues.columns = cmValues.meta.fields
-            .map(col => ({'data': col, 'label': deSanitizeDict[col], 'title': deSanitizeDict[col]}))
+    // add class column
+    cmValues.meta.fields.push('class')
+    for (const isolateData of cmValues.data) {
+        isolateData['class'] = valuesData.isolateToClass[isolateData['Isolate']]
+    }
 
+    // add values column
+    if (valuesData.isNumeric) {
+        cmValues.meta.fields.push('value')
+        for (const isolateData of cmValues.data) {
+            isolateData['value'] = valuesData.isolateToValue[isolateData['Isolate']]
+        }
+    }
 
-        console.log('cmValues', cmValues)
-        return cmValues
-    })
+    // save some variables to promise output
+    cmValues.genes = genes
+    cmValues.deSanitizeDict = deSanitizeDict
+    cmValues.index = cmValues.data.map(col => col['Isolate'])
+
+    console.log('cmValues', cmValues)
+    return cmValues
+})
 
 // plot coverage matrix
 const coverageMatrixPlotPromise = coverageMatrixPromise.then((cmValues) => {
+    const generateColumnDef = function (col, i) {
+        const colDef = {
+            'data': col,
+            'label': cmValues.deSanitizeDict[col],
+            'title': cmValues.deSanitizeDict[col]
+        }
+        if (i > 0 && i <= cmValues.genes.length) {
+            colDef['className'] = 'gene-count'
+        }
+        return colDef
+
+    }
     cmValues.table = $('#coverage-matrix').DataTable({
         data: cmValues.data,
-        columns: cmValues.columns,
+        columns: cmValues.meta.fields
+            .map((col, i) => generateColumnDef(col, i)),
         paging: false,
         searching: false,
         columnDefs: [{
-            "targets": [...Array(cmValues.isolates.length + 1).keys()], "orderable": false, // "searchable": false
+            "targets": [...Array(cmValues.genes.length + 1).keys()], "orderable": false, // "searchable": false
         }],
         order: [[cmValues.meta.fields.length - 1, "desc"]]  // last col: class or numeric value
     })
+
+
+    let popovers = []
+    $(document).on("click", function (event) {
+        // if the click is not on a popover
+        if (!Boolean(event.target.closest('.popover'))) {
+            // hide all popovers
+            while (popovers.length > 0) {
+                const popover = popovers.pop()
+                bootstrap.Popover.getInstance(popover).hide()
+            }
+        }
+    })
+
+    const genesPopoverTitle = function () {
+        popovers.push(event.target)
+        event.stopPropagation()
+        const isolate = event.target.parentElement.firstChild.textContent
+        const geneCoord = event.target.cellIndex - 1
+        const geneSanitized = cmValues.genes[geneCoord]
+        const gene = cmValues.deSanitizeDict[geneSanitized]
+        return `${gene} x ${isolate}`
+    }
+
+    const genesPopoverContent = function () {
+        const isolate = event.target.parentElement.firstChild.textContent
+        const geneCoord = event.target.cellIndex - 1
+        const geneSanitized = cmValues.genes[geneCoord]
+        const orthoGene = cmValues.deSanitizeDict[geneSanitized]
+        const isolateId = cmValues.index.indexOf(isolate)
+        const isolateData = cmValues.geneList[isolateId]
+        let genes = isolateData[geneSanitized]
+
+        // gnl|extdb|GENE_0001 -> GENE_0001
+        if (sanitizeGenes) genes = genes.map((gene) => gene.split('|').slice(-1)[0])
+
+        const htmls = genes.map((gene) => `<code>${gene}</code>`)
+
+        return htmls.join('<br>')
+    }
+
+    const allGeneCells = document.querySelectorAll('#coverage-matrix td.gene-count')
+    console.log(allGeneCells)
+    Array.from(allGeneCells).forEach((patch, index) => {
+        new bootstrap.Popover(patch, {
+            container: 'body',
+            trigger: 'click',
+            html: true,
+            title: genesPopoverTitle,
+            content: genesPopoverContent
+        })
+    })
+
     return cmValues
 })
 
@@ -295,7 +395,7 @@ const plotHistogram = function ({targetId, nameId, gene, coverageMatrix, valuesD
 
     const [gptp, gptn, gptu, gntp, gntn, gntu] = [[], [], [], [], [], []]
     for (const isolateData of coverageMatrix) {
-        const isolate = isolateData['isolate']
+        const isolate = isolateData['Isolate']
         const genePositive = isolateData[sanitizedGene].toString() !== '0'
         const traitPositive = valuesData.isolateToClass[isolate]
         const traitValue = valuesData.isolateToValue[isolate]

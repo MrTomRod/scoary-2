@@ -61,6 +61,11 @@ table, ::after, ::before {
     }
 }
 
+#result-tsv_wrapper, #coverage-matrix_wrapper {
+    width: 100%;
+    overflow-x: auto;
+}
+
 .plot-container {
     text-align: center;
     width: 100%;
@@ -72,4 +77,13 @@ table, ::after, ::before {
 
 #metadata-div {
     white-space: pre;
+}
+
+
+.popover {
+    width: min-content !important;
+}
+
+.popover-header {
+    white-space: nowrap;
 }
