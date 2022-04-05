@@ -455,7 +455,7 @@ Promise.all([tablePromise, metaPromise, valuesPromise, coverageMatrixPromise])
             plotHistogram({
                 targetId: 'histogram',
                 nameId: 'histogram-gene-name',
-                gene: tableData.index[0],
+                gene: currentGene,
                 coverageMatrix: coverageMatrixValues.data,
                 valuesData: valuesData
             })

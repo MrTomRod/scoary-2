@@ -131,14 +131,15 @@ def scoary(
     print(CITATION)
 
 
-def create_final_overview_df(traits: [str], res: [float | str | None]) -> pd.DataFrame:
+def create_final_overview_df(traits: [str], res: [float | str | None]) -> pd.DataFrame | None:
     # res may contain: float, str or None
     # float: smallest empirical pvalue
     # str: duplicated trait -> name of trait
     # None: no gene was significant
 
-    # remove None, merge duplicates
-    res = {t: (res[t] if res is str else r) for t, r in zip(traits, res) if r is not None}
+    res = {t: r for t, r in zip(traits, res)}  # create dict
+    res = {t: res[r] if type(r) is str else r for t, r in res.items()}  # restore duplicates
+    res = {t: r for t, r in res.items() if r is not None}  # remove Nones
 
     if len(res) == 0:
         logging.warning(f'No traits left after filtering!')
