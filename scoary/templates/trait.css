@@ -2,6 +2,12 @@
 /*    background-position: bottom center !important;*/
 /*}*/
 
+#tree {
+    min-height: 400px;
+    width: 100%;
+    overflow: hidden;
+}
+
 #coverage-matrix_wrapper thead th {
     /* Turn headers 90° */
     writing-mode: vertical-rl;

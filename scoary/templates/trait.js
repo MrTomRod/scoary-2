@@ -2,14 +2,23 @@
 
 
 const colorDict = {
+    // pie & hist
     'g+t+': '#1f78b4',
     'g+t-': '#a6cee3',
     'g+t?': '#e0f4ff',
     'g-t+': '#b2df8a',
     'g-t-': '#33a02c',
     'g-t?': '#edffdf',
+    // tree
+    'g+': '#000000',
+    'g-': '#e3e3e3',
+    't+': 'red',
+    't-': 'yellow',
+    't?': '#ffffff',
 }
+const colorScale = ['yellow', 'red']
 const sanitizeGenes = true
+const treeHeight = 400
 
 
 let _domResolve
@@ -41,7 +50,6 @@ const metaPromise = fetch(`traits/${trait}/meta.json`)
     .then(response => response.json())
 
 metaPromise.then(metaData => {
-    console.log('metadata-div', metaData)
     document.getElementById('metadata-div').innerText = JSON.stringify(metaData, null, '\t')
 })
 
@@ -54,6 +62,14 @@ const valuesPromise = Papa.execPromise(`traits/${trait}/values.tsv`, {
     valuesData.isolateToClass = Object.fromEntries(valuesData.data.map(x => [x['isolate'], x['class'].toLowerCase()]))
     if (valuesData.isNumeric) {
         valuesData.isolateToValue = Object.fromEntries(valuesData.data.map(x => [x['isolate'], x['value']]))
+        valuesData.colorScale = chroma.scale(colorScale)
+        const vals = valuesData.data.map(x => x['value'])
+        const valMax = Math.max(...vals)
+        const valMin = Math.min(...vals)
+        const valDiff = valMax - valMin
+        valuesData.isolateToNormValue = Object.fromEntries(valuesData.data.map(
+            x => [x['isolate'], (x['value'] - valMin) / valDiff]
+        ))
     }
     return valuesData
 })
@@ -217,7 +233,6 @@ const coverageMatrixPromise = Promise.all(
     cmValues.deSanitizeDict = deSanitizeDict
     cmValues.index = cmValues.data.map(col => col['Isolate'])
 
-    console.log('cmValues', cmValues)
     return cmValues
 })
 
@@ -288,7 +303,6 @@ const coverageMatrixPlotPromise = coverageMatrixPromise.then((cmValues) => {
     }
 
     const allGeneCells = document.querySelectorAll('#coverage-matrix td.gene-count')
-    console.log(allGeneCells)
     Array.from(allGeneCells).forEach((patch, index) => {
         new bootstrap.Popover(patch, {
             container: 'body',
@@ -312,10 +326,12 @@ const calcLayout = function (layout, heightMultiplier) {
     }
 
     if (window.innerWidth >= 1100) {
+        // show plots on the right side
         layout.width = titleWidth - 5
         layout.height = height * heightMultiplier - 10
     } else {
-        const size = titleWidth * 0.8// square
+        // show plots below
+        const size = titleWidth * 0.8 // square
         layout.width = size
         layout.height = size
     }
@@ -384,13 +400,11 @@ Promise.all([tablePromise, coverageMatrixPlotPromise]).then(([tableData, cmValue
 })
 
 // plot Histogram for gene
-const plotHistogram = function ({targetId, nameId, gene, coverageMatrix, valuesData}) {
+const plotHistogram = function ({targetId, gene, coverageMatrix, valuesData}) {
     const sanitizedGene = sanitizeKey(gene)
     const targetElement = document.getElementById(targetId)
-    const targetNameElement = document.getElementById(nameId)
 
     Plotly.purge(targetElement)
-    targetNameElement.innerHTML = gene
 
 
     const [gptp, gptn, gptu, gntp, gntn, gntu] = [[], [], [], [], [], []]
@@ -451,10 +465,12 @@ Promise.all([tablePromise, metaPromise, valuesPromise, coverageMatrixPromise])
         }
 
         let currentGene
+        const targetNameElement = document.getElementById('histogram-gene-name')
+
         const plotWrapper = function () {
+            targetNameElement.innerHTML = currentGene
             plotHistogram({
                 targetId: 'histogram',
-                nameId: 'histogram-gene-name',
                 gene: currentGene,
                 coverageMatrix: coverageMatrixValues.data,
                 valuesData: valuesData
@@ -477,5 +493,115 @@ Promise.all([tablePromise, metaPromise, valuesPromise, coverageMatrixPromise])
         window.addEventListener('resize', () => {
             clearTimeout(waitUntilResizeOverTimeout);
             waitUntilResizeOverTimeout = setTimeout(plotWrapper, 300);
+        })
+    })
+
+
+// load newick file (tree)
+const newickPromise = fetch('tree.nwk')
+    .then(response => response.text())
+
+
+const getSize = function (element) {
+    const computedStyle = getComputedStyle(element)
+    return element.clientWidth - parseFloat(computedStyle.paddingLeft) - parseFloat(computedStyle.paddingRight)
+}
+// draw tree
+const treePromise = Promise.all([documentReadyPromise, newickPromise, valuesPromise])
+    .then(([_, newickTree, valuesData]) => {
+        const parentDiv = document.getElementById('tree-and-tables')
+        const treeContainer = document.querySelector("#tree")
+        let currentWidth = getSize(parentDiv)
+        const tree = new phylocanvas.PhylocanvasGL(
+            treeContainer, {
+                type: phylocanvas.TreeTypes.Hierarchical,
+                blocks: valuesData.isNumeric ? ['gene', 'trait', 'value'] : ['gene', 'trait'],
+                blockLength: 24, // block size in pixels
+                blockPadding: 8, // the gap size between blocks in pixels
+                alignLabels: true,
+                showLabels: true,
+                showLeafLabels: true,
+                size: {width: currentWidth, height: treeHeight},
+                source: newickTree,
+            }
+        )
+
+        const redrawWrapper = function () {
+            const newWidth = getSize(parentDiv)
+            if (newWidth !== currentWidth) {
+                tree.resize(newWidth, treeHeight)
+                currentWidth = newWidth
+            }
+        }
+        let waitUntilResizeOverTimeout
+        window.addEventListener('resize', () => {
+            clearTimeout(waitUntilResizeOverTimeout);
+            waitUntilResizeOverTimeout = setTimeout(redrawWrapper, 300);
+        })
+
+        return tree
+    })
+
+
+const updateTreeMetadata = function (tree, gene, coverageMatrix, valuesData) {
+    const sanitizedGene = sanitizeKey(gene)
+
+    // calculate metadata
+    const metadata = {}
+    for (const isolateData of coverageMatrix) {
+        const isolate = isolateData['Isolate']
+        const genePositive = isolateData[sanitizedGene].toString() !== '0'
+        const traitPositive = valuesData.isolateToClass[isolate]
+        // const traitValue = valuesData.isolateToValue[isolate]
+
+        metadata[isolate] = {trait: {}, gene: {}, value: {}}
+
+        if (genePositive) {
+            metadata[isolate]['gene']['colour'] = colorDict['g+']
+        } else {
+            metadata[isolate]['gene']['colour'] = colorDict['g-']
+        }
+
+        if (traitPositive === 'true') {
+            metadata[isolate]['trait']['colour'] = colorDict['t+']
+        } else if (traitPositive === 'false') {
+            metadata[isolate]['trait']['colour'] = colorDict['t-']
+        } else {
+            metadata[isolate]['trait']['colour'] = colorDict['t?']
+        }
+
+        if (valuesData.isNumeric) {
+            metadata[isolate]['value']['colour'] = valuesData.colorScale(valuesData.isolateToNormValue[isolate])
+        }
+    }
+
+    // update tree
+    tree.setProps({
+        metadata: metadata
+    })
+
+    return metadata
+}
+
+
+Promise.all([treePromise, tablePromise, valuesPromise, coverageMatrixPromise])
+    .then(([tree, tableData, valuesData, coverageMatrixValues]) => {
+        let currentGene
+        const targetNameElement = document.getElementById('tree-gene-name')
+        const plotWrapper = function () {
+            targetNameElement.innerHTML = currentGene
+            updateTreeMetadata(tree, currentGene, coverageMatrixValues.data, valuesData)
+        }
+        // set currentGene to first gene in table and draw plot
+        currentGene = tableData.index[0]
+        plotWrapper()
+
+        $('#coverage-matrix_wrapper thead th:not(:first):not(:last)').click((event) => {
+            currentGene = event.target.textContent
+            plotWrapper()
+        })
+        $('#result-tsv tbody tr td:first-child').click((event) => {
+            currentGene = event.target.textContent
+            plotWrapper()
         })
     })

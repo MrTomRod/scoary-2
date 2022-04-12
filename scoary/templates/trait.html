@@ -10,7 +10,6 @@
     <link href="//cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css"
           rel="stylesheet" crossorigin="anonymous">
     <script src="https://code.jquery.com/jquery-3.6.0.slim.min.js"
-            integrity="sha256-u7e5khyithlIdTpu22PHhENmPcRdFiHRjhAuHcs05RI="
             crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.10.2/dist/umd/popper.min.js"
             crossorigin="anonymous"></script>
@@ -20,7 +19,12 @@
             crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"
             crossorigin="anonymous"></script>
-    <script src="https://cdn.plot.ly/plotly-2.9.0.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.9.0.min.js"
+            crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/@phylocanvas/phylocanvas.gl@latest/dist/bundle.min.js"
+            crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.1.0/chroma.min.js"
+            crossorigin="anonymous"></script>
 
     <script src="trait.js"></script>
     <link href="trait.css" rel="stylesheet">
@@ -30,7 +34,14 @@
 
 <div id="container-left">
 
-    <div class="container">
+    <div class="container" id="tree-and-tables">
+        <div class="plot-title">
+            <h1 style="display: inline">Tree: </h1>
+            <h2 id="tree-gene-name"></h2>
+        </div>
+
+        <div id="tree"></div>
+
         <h1>Genes</h1>
         <div> Toggle column:
             <div id="vis-toggler"></div>
