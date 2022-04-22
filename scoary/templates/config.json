@@ -1,0 +1,30 @@
+{
+  "default-hidden-cols": ["sensitivity", "specificity", "odds_ratio", "contrasting", "supporting", "opposing", "best", "worst", "pval"],
+  "sanitize-genes": true,
+  "tree-height": 400,
+  "color-scale": [
+    "yellow",
+    "red"
+  ],
+  "colors": {
+    "_1": "pie & hist",
+    "g+t+": "#1f78b4",
+    "g+t-": "#a6cee3",
+    "g+t?": "#e0f4ff",
+    "g-t+": "#b2df8a",
+    "g-t-": "#33a02c",
+    "g-t?": "#edffdf",
+    "_2": "tree",
+    "g+": "#000000",
+    "g-": "#e3e3e3",
+    "t+": "red",
+    "t-": "yellow",
+    "t?": "#ffffff"
+  },
+  "gene-link": "https://dialact.bioinformatics.unibe.ch/gene/{gene}",
+  "genes-links": {
+    "gene trait matching": "https://dialact.bioinformatics.unibe.ch/gene-trait-matching/?g1={have-isolates}&g2={lack-isolates}",
+    "compare genes": "https://dialact.bioinformatics.unibe.ch/compare-genes/?genes={all-genes}"
+  },
+  "concat-string": "+"
+}
