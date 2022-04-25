@@ -94,6 +94,7 @@ const documentReadyPromise = new Promise(function (resolve) {
     _domResolve = resolve
 })
 document.addEventListener('DOMContentLoaded', _domResolve)
+documentReadyPromise.then(() => document.querySelector('#trait-name').textContent = trait)
 
 
 /**
@@ -122,7 +123,19 @@ const metaPromise = fetch(`traits/${trait}/meta.json`)
  * Show metadata.
  */
 metaPromise.then(metaData => {
-    document.getElementById('metadata-div').innerText = JSON.stringify(metaData, null, '\t')
+    const applyMetadata = (elementId, dictionary) =>
+        document.getElementById(elementId).textContent = JSON.stringify(dictionary, null, '\t')
+
+    if (metaData.hasOwnProperty('info')) {
+        // add trait info
+        applyMetadata('trait-content', metaData.info)
+        // show element
+        document.getElementById('trait-metadata').hidden = false
+        // do not show metaData.info twice
+        delete metaData.info
+    }
+
+    applyMetadata('metadata-content', metaData)
 })
 
 
@@ -154,7 +167,7 @@ const valuesPromise = configPromise.then(config => {
             valuesData.isolateToNormValue = Object.fromEntries(valuesData.data.map(
                 x => [x['isolate'], (x['value'] - valMin) / valDiff]
             ))
-            valuesData.colorScale = chroma.scale(config['color-scale'])
+            valuesData.colorScale = chroma.scale(config['tree-config']['color-scale'])
         }
 
         return valuesData
@@ -213,13 +226,21 @@ const genesTablePromise = Promise.all([tablePromise, documentReadyPromise]).then
     const target = document.getElementById('vis-toggler')
     let htmls = []
     tableData.meta.fields.forEach((col, i) => {
-        htmls.push(`<button class="toggle-vis" data-column="${i}">${col}</button>`)
+        const active = tableData.hiddenCols.includes(i) ? '' : 'active'
+        htmls.push(`<button class="toggle-vis btn btn-sm btn-primary ${active}" data-column="${i}">${col}</button>`)
     })
-    target.innerHTML = htmls.join(' - ')
-    $('.toggle-vis').on('click', function (e) {
+    target.innerHTML = htmls.join(' ')
+    $('.toggle-vis').on('click', function (event) {
         const column = tableData.table.column($(this).attr('data-column'))
-        column.visible(!column.visible())
+        if (column.visible()) {
+            column.visible(false)
+            event.target.classList.remove('active')
+        } else {
+            column.visible(true)
+            event.target.classList.add('active')
+        }
     })
+    return tableData
 })
 
 
@@ -357,7 +378,7 @@ const coverageMatrixPromise = Promise.all(
  * Hide all shown popovers if a click on a non-popover is registered.
  */
 let popovers = []
-$(document).on("click", function (event) {
+$(document).on("click", (event) => {
     // ignore clicks on .popover or .has-popover
     if (Boolean(event.target.closest('.popover, .has-popover'))) {
         return
@@ -380,7 +401,7 @@ const coverageMatrixTablePromise = Promise.all(
     [coverageMatrixPromise, configPromise]
 ).then(([cmValues, config]) => {
     // Load DataTable
-    const generateColumnDef = function (col, i) {
+    const generateColumnDef = (col, i) => {
         const colDef = {
             'data': col,
             'label': cmValues.deSanitizeDict[col],
@@ -422,8 +443,8 @@ const coverageMatrixTablePromise = Promise.all(
     /**
      * Make genes clickable depending on config.json.
      */
-    const createGeneElement = function (gene) {
-        let geneLink = config['gene-link']
+    const createGeneElement = (gene) => {
+        let geneLink = config['link-config']['single-gene']
         if (geneLink) {
             geneLink = String(geneLink).format({gene: gene})
             return `<a href='${geneLink}'><code>${gene}</code></a>`
@@ -457,7 +478,7 @@ const coverageMatrixTablePromise = Promise.all(
     const allGeneCells = document.querySelectorAll('#coverage-matrix td.gene-count')
     Array.from(allGeneCells).forEach((patch, index) => {
         new bootstrap.Popover(patch, {
-            container: 'body',
+            container: '#container-left',
             trigger: 'click',
             html: true,
             title: genePopoverTitle,
@@ -470,128 +491,13 @@ const coverageMatrixTablePromise = Promise.all(
 
 
 /**
- * Calculate the width and height of pie plot / histogram based on size of #container-right.
- *
- * Adds these parameters to layout:
- *  - layout.height: int
- *  - layout.width: int
- *
- * @param {Object} layout Configuration for Plotly plot.
- * @param {float|int} heightMultiplier The height will be scaled by this value
- */
-const calcLayout = function (layout, heightMultiplier) {
-    const plotContainer = document.getElementById('container-right')
-    let height = window.innerHeight
-    let titleWidth
-    for (const titleElement of plotContainer.querySelectorAll('.plot-title')) {
-        height -= titleElement.offsetHeight
-        titleWidth = titleElement.offsetWidth
-    }
-
-    if (window.innerWidth >= 1100) {
-        // show plots on the right side, see also trait.css
-        layout.width = titleWidth - 5
-        layout.height = height * heightMultiplier - 10
-    } else {
-        // show plots below
-        const size = titleWidth * 0.8 // square
-        layout.width = size
-        layout.height = size
-    }
-
-    // ensure minimum of 350x350
-    layout.width = Math.max(layout.width, 350)
-    layout.height = Math.max(layout.height, 350)
-
-    return layout
-}
-
-
-/**
- * For a gene, calculate the numeric values per category. (Raw data for histogram.)
- *
- * @param {string} gene Name of the orthgene.
- * @param {[]} coverageMatrix Gene count table
- * @param {[]} valuesData Boolean trait table
- */
-const calcHistValues = function (gene, coverageMatrix, valuesData) {
-    const sanitizedGene = sanitizeKey(gene)
-    const [gptp, gptn, gptu, gntp, gntn, gntu] = [[], [], [], [], [], []]
-    for (const isolateData of coverageMatrix) {
-        const isolate = isolateData['Isolate']
-        const genePositive = isolateData[sanitizedGene].toString() !== '0'
-        const traitPositive = valuesData.isolateToTrait[isolate]
-        const traitValue = valuesData.isolateToValue[isolate]
-
-        if (genePositive) {
-            if (traitPositive === 'true') {
-                gptp.push(traitValue)
-            } else if (traitPositive === 'false') {
-                gptn.push(traitValue)
-            } else {
-                gptu.push(traitValue)
-            }
-        } else {
-            if (traitPositive === 'true') {
-                gntp.push(traitValue)
-            } else if (traitPositive === 'false') {
-                gntn.push(traitValue)
-            } else {
-                gntu.push(traitValue)
-            }
-        }
-    }
-    return [gptp, gptn, gptu, gntp, gntn, gntu]
-}
-
-
-/**
- * For a gene, calculate the number of isolates per category. (Raw data for histogram.)
- *
- * @param {string} gene Name of the orthgene.
- * @param {[]} coverageMatrix Gene count table
- * @param {[]} valuesData Boolean trait table
- */
-const calcPieValues = function (gene, coverageMatrix, valuesData) {
-    const sanitizedGene = sanitizeKey(gene)
-    let [gptp, gptn, gptu, gntp, gntn, gntu] = [0, 0, 0, 0, 0, 0]
-    for (const isolateData of coverageMatrix) {
-        const isolate = isolateData['Isolate']
-        const genePositive = isolateData[sanitizedGene].toString() !== '0'
-        const traitPositive = valuesData.isolateToTrait[isolate]
-
-        if (genePositive) {
-            if (traitPositive === 'true') {
-                gptp += 1
-            } else if (traitPositive === 'false') {
-                gptn += 1
-            } else {
-                gptu += 1
-            }
-        } else {
-            if (traitPositive === 'true') {
-                gntp += 1
-            } else if (traitPositive === 'false') {
-                gntn += 1
-            } else {
-                gntu += 1
-            }
-        }
-    }
-    return [gptp, gptn, gptu, gntp, gntn, gntu]
-}
-
-
-/**
  * Plot pie chart.
  *
  * @param {Element} targetElement Container element for plot.
- * @param {float|int} heightMultiplier The height will be scaled by this value
  * @param {[int]} values The values of the pie chart: ['g+t+', "g+t-", "g+t?", "g-t+", "g-t-", "g-t?"]
  * @param {string: string} colorDict Maps groups to colors, e.g. {"g+t+": "#1f78b4"}
  */
-const plotPie = function ({targetElement, heightMultiplier, values, colorDict}) {
-    console.log('plotPie:colorDict', colorDict)
+const plotPie = ({targetElement, values, colorDict}) => {
     Plotly.purge(targetElement)
 
     const colNames = ['g+t+', "g+t-", "g+t?", "g-t+", "g-t-", "g-t?"]
@@ -603,8 +509,7 @@ const plotPie = function ({targetElement, heightMultiplier, values, colorDict}) 
         type: 'pie',
         marker: {colors: colNames.map(col => colorDict[col])}
     }]
-    const layout = calcLayout({}, heightMultiplier)
-    Plotly.newPlot(targetElement, data, layout)
+    Plotly.newPlot(targetElement, data)
 }
 
 
@@ -612,11 +517,10 @@ const plotPie = function ({targetElement, heightMultiplier, values, colorDict}) 
  * Plot histogram.
  *
  * @param {Element} targetElement Container element for plot.
- * @param {float|int} heightMultiplier The height will be scaled by this value
  * @param {[[float]]} values The values of the pie chart: ['g+t+', "g+t-", "g+t?", "g-t+", "g-t-", "g-t?"]
  * @param {string: string} colorDict Maps groups to colors, e.g. {"g+t+": "#1f78b4"}
  */
-const plotHistogram = function ({targetElement, heightMultiplier, values, colorDict}) {
+const plotHistogram = ({targetElement, values, colorDict}) => {
     Plotly.purge(targetElement)
 
     const [gptp, gptn, gptu, gntp, gntn, gntu] = values
@@ -636,11 +540,7 @@ const plotHistogram = function ({targetElement, heightMultiplier, values, colorD
         })
         .filter(trace => trace.x.length)  // avoid error messages
 
-    const layout = calcLayout({
-        barmode: "stack",
-        xaxis: {title: "numerical value"},
-        yaxis: {title: "count"}
-    }, heightMultiplier)
+    const layout = {barmode: "stack", xaxis: {title: "numerical value"}, yaxis: {title: "count"}}
 
     Plotly.newPlot(targetElement, data, layout)
 }
@@ -651,15 +551,19 @@ const plotHistogram = function ({targetElement, heightMultiplier, values, colorD
  * applyClick: runs the geneClickFunctions
  */
 const geneClickFunctions = []
-const applyClick = function (event) {
+const applyClick = (event) => {
     const currentGene = event.target.textContent
-    geneClickFunctions.forEach((fn) => fn(event, currentGene))
+    Promise.all([coverageMatrixDataPromise, valuesPromise])
+        .then(([cmValues, valuesData]) => {
+            const orthogeneData = calcOrthogeneData(currentGene, cmValues.data, valuesData)
+            geneClickFunctions.forEach((fn) => fn(event, currentGene, orthogeneData))
+        })
 }
 
 
 // Add click listeners to genes
 Promise.all([tablePromise, coverageMatrixTablePromise])
-    .then(([tableData, cmValues]) => {
+    .then(([tableData, _]) => {
         $('#coverage-matrix_wrapper thead th:not(:first):not(:last)').click((event) => {
             const gene = event.target.innerHTML
             if (!tableData.index.includes(gene)) return // ignore potential additional columns
@@ -674,22 +578,21 @@ Promise.all([tablePromise, coverageMatrixTablePromise])
 // Plot first gene by default
 Promise.all([tablePromise, coverageMatrixTablePromise, valuesPromise, configPromise])
     .then(([tableData, cmValues, valuesData, config]) => {
-        const heightMultiplier = cmValues.isNumeric ? 0.5 : 1
         const targetElement = document.getElementById('pie')
         const targetNameElement = document.getElementById('pie-gene-name')
 
-        const plotWrapper = function (event, currentGene) {
+        const plotWrapper = (event, currentGene, orthogeneData) => {
             targetNameElement.innerHTML = currentGene
             plotPie({
                 targetElement: targetElement,
-                heightMultiplier: heightMultiplier,
-                values: calcPieValues(currentGene, cmValues.data, valuesData),
+                values: orthogeneData.map(x => x.length),
                 colorDict: config['colors']
             })
         }
 
         // draw plot
-        plotWrapper(null, tableData.index[0])
+        const currentGene = tableData.index[0]
+        plotWrapper(null, currentGene, calcOrthogeneData(currentGene, cmValues.data, valuesData))
 
         // append to click event
         geneClickFunctions.push(plotWrapper)
@@ -698,7 +601,7 @@ Promise.all([tablePromise, coverageMatrixTablePromise, valuesPromise, configProm
         let waitUntilResizeOverTimeout
         window.addEventListener('resize', () => {
             clearTimeout(waitUntilResizeOverTimeout)
-            waitUntilResizeOverTimeout = setTimeout(plotWrapper, 300)
+            waitUntilResizeOverTimeout = setTimeout(() => Plotly.Plots.resize(targetElement), 300)
         })
     })
 
@@ -713,18 +616,18 @@ Promise.all([tablePromise, metaPromise, valuesPromise, coverageMatrixPromise, co
         const targetElement = document.getElementById('histogram')
         const targetNameElement = document.getElementById('histogram-gene-name')
 
-        const plotWrapper = function (event, currentGene) {
+        const plotWrapper = (event, currentGene, orthogeneData) => {
             targetNameElement.innerHTML = currentGene
             plotHistogram({
                 targetElement: targetElement,
-                heightMultiplier: 0.5,
-                values: calcHistValues(currentGene, cmValues.data, valuesData),
+                values: orthogeneData,
                 colorDict: config['colors']
             })
         }
 
         // draw plot
-        plotWrapper(null, tableData.index[0])
+        const currentGene = tableData.index[0]
+        plotWrapper(null, currentGene, calcOrthogeneData(currentGene, cmValues.data, valuesData))
 
         // append to click event
         geneClickFunctions.push(plotWrapper)
@@ -733,19 +636,17 @@ Promise.all([tablePromise, metaPromise, valuesPromise, coverageMatrixPromise, co
         let waitUntilResizeOverTimeout
         window.addEventListener('resize', () => {
             clearTimeout(waitUntilResizeOverTimeout)
-            waitUntilResizeOverTimeout = setTimeout(plotWrapper, 300)
+            waitUntilResizeOverTimeout = setTimeout(() => Plotly.Plots.resize(targetElement), 300)
         })
     })
 
 
 Promise.all([coverageMatrixPromise, valuesPromise, configPromise])
     .then(([cmValues, valuesData, config]) => {
-        console.log('cmValues', cmValues)
-        const concatString = config['concat-string'] ?? '+'
-        console.log('valuesData', valuesData)
+        const concatString = config['link-config']['concat-string'] ?? '+'
         // break if genes list
         if (!cmValues.isGeneList) return
-        const genesLinks = config['genes-links']
+        const genesLinks = config['link-config']['many-genes']
         // break if no links
         if (genesLinks.length === 0) return
 
@@ -804,15 +705,11 @@ Promise.all([coverageMatrixPromise, valuesPromise, configPromise])
             return html
         }
 
-        const genesPopover = function (event, currentGene) {
-            console.log('0', event)
-            console.log('1', currentGene)
-            console.log('2', cmValues)
-
+        const genesPopover = (event, currentGene) => {
             event.target.classList.add('has-popover')
 
             new bootstrap.Popover(event.target, {
-                container: 'body',
+                container: '#container-left',
                 trigger: 'click',
                 html: true,
                 title: currentGene,
@@ -834,7 +731,7 @@ const newickPromise = fetch('tree.nwk')
     .then(response => response.text())
 
 
-const getSize = function (element) {
+const getSize = (element) => {
     const computedStyle = getComputedStyle(element)
     return element.clientWidth - parseFloat(computedStyle.paddingLeft) - parseFloat(computedStyle.paddingRight)
 }
@@ -843,27 +740,28 @@ const treePromise = Promise.all([documentReadyPromise, newickPromise, valuesProm
     .then(([_, newickTree, valuesData, config]) => {
         // https://www.phylocanvas.gl/examples/metadata-blocks.html
         // https://www.phylocanvas.gl/docs/methods.html
-        const parentDiv = document.getElementById('tree-and-tables')
         const treeContainer = document.querySelector("#tree")
-        let currentWidth = getSize(parentDiv)
+        let currentWidth = getSize(treeContainer.parentElement)
         const tree = new phylocanvas.PhylocanvasGL(
             treeContainer, {
-                type: phylocanvas.TreeTypes.Hierarchical,
+                type: phylocanvas.TreeTypes[config['tree-config']['type']],
                 blocks: valuesData.isNumeric ? ['gene', 'trait', 'value'] : ['gene', 'trait'],
                 blockLength: 24, // block size in pixels
                 blockPadding: 8, // the gap size between blocks in pixels
                 alignLabels: true,
                 showLabels: true,
                 showLeafLabels: true,
-                size: {width: currentWidth, height: config['tree-height']},
+                interactive: {zoom: false, pan: false, tooltip: true, highlight: true},
+                zoom: false,
+                size: {width: currentWidth, height: config['tree-config']['height']},
                 source: newickTree,
             }
         )
 
-        const redrawWrapper = function () {
-            const newWidth = getSize(parentDiv)
+        const redrawWrapper = () => {
+            const newWidth = getSize(treeContainer.parentElement)
             if (newWidth !== currentWidth) {
-                tree.resize(newWidth, config['tree-height'])
+                tree.resize(newWidth, config['tree-config']['height'])
                 currentWidth = newWidth
             }
         }
@@ -880,50 +778,111 @@ const treePromise = Promise.all([documentReadyPromise, newickPromise, valuesProm
 /**
  * Update the colorful rows of metadata below the phylogenetic tree
  *
- * @param {Object} tree phylocanvas.gl object
- * @param {string} gene orthogene name (unsanitized)
  * @param {[]} coverageMatrix Gene count table
  * @param {[]} valuesData Boolean trait table
  * @param {string: string} colorDict Maps groups to colors, e.g. {"g+t+": "#1f78b4"}
+ * @returns {string: Array} metadata Dictionary of metadata
  */
-const updateTreeMetadata = function (tree, gene, coverageMatrix, valuesData, colorDict) {
-    const sanitizedGene = sanitizeKey(gene)
+const loadTreeMetadata = (coverageMatrix, valuesData, config) => {
+    const metaConfig = config['tree-config']['metadata-bars']
 
     // calculate metadata
     const metadata = {}
     for (const isolateData of coverageMatrix) {
         const isolate = isolateData['Isolate']
-        const genePositive = isolateData[sanitizedGene].toString() !== '0'
         const traitPositive = valuesData.isolateToTrait[isolate]
-        // const traitValue = valuesData.isolateToValue[isolate]
 
-        metadata[isolate] = {trait: {}, gene: {}, value: {}}
-
-        if (genePositive) {
-            metadata[isolate]['gene']['colour'] = colorDict['g+']
-        } else {
-            metadata[isolate]['gene']['colour'] = colorDict['g-']
-        }
-
+        let isolateConfig = {}
         if (traitPositive === 'true') {
-            metadata[isolate]['trait']['colour'] = colorDict['t+']
+            isolateConfig['trait'] = metaConfig['t+']
         } else if (traitPositive === 'false') {
-            metadata[isolate]['trait']['colour'] = colorDict['t-']
+            isolateConfig['trait'] = metaConfig['t-']
         } else {
-            metadata[isolate]['trait']['colour'] = colorDict['t?']
+            isolateConfig['trait'] = metaConfig['t?']
         }
 
         if (valuesData.isNumeric) {
-            metadata[isolate]['value']['colour'] = valuesData.colorScale(valuesData.isolateToNormValue[isolate])
+            isolateConfig['value'] = {
+                colour: valuesData.colorScale(valuesData.isolateToNormValue[isolate]),
+                label: parseFloat(valuesData.isolateToValue[isolate]).toPrecision(3)
+            }
         }
+
+        metadata[isolate] = isolateConfig
+    }
+
+    return metadata
+}
+
+// https://www.phylocanvas.gl/examples/styling-nodes.html
+const updateTreeGeneColors = (tree, gene, baseMetadata, coverageMatrix, valuesData, config) => {
+    const sanitizedGene = sanitizeKey(gene)
+    const metaConfig = config['tree-config']['metadata-bars']
+    const leafConfig = config['tree-config']['leaf-nodes']
+
+    // calculate styles
+    const styles = {}
+    const metadata = baseMetadata
+    for (const isolateData of coverageMatrix) {
+        const isolate = isolateData['Isolate']
+        const genePositive = isolateData[sanitizedGene].toString() !== '0'
+
+        styles[isolate] = {}
+
+        if (genePositive) {
+            styles[isolate] = leafConfig['g+']
+            metadata[isolate]['gene'] = metaConfig['g+']
+        } else {
+            styles[isolate] = leafConfig['g-']
+            metadata[isolate]['gene'] = metaConfig['g-']
+        }
+
     }
 
     // update tree
     tree.setProps({
+        styles: styles,
         metadata: metadata
     })
 
-    return metadata
+    return styles
+}
+
+/**
+ * For a gene, calculate the numeric values per category. (Raw data for histogram.)
+ *
+ * @param {string} gene Name of the orthgene.
+ * @param {[]} coverageMatrix Gene count table
+ * @param {[]} valuesData Boolean trait table
+ */
+const calcOrthogeneData = (gene, coverageMatrix, valuesData) => {
+    const sanitizedGene = sanitizeKey(gene)
+    const [gptp, gptn, gptu, gntp, gntn, gntu] = [[], [], [], [], [], []]
+    for (const isolateData of coverageMatrix) {
+        const isolate = isolateData['Isolate']
+        const genePositive = isolateData[sanitizedGene].toString() !== '0'
+        const traitPositive = valuesData.isolateToTrait[isolate]
+        const traitValue = valuesData.isolateToValue[isolate]
+
+        if (genePositive) {
+            if (traitPositive === 'true') {
+                gptp.push(traitValue)
+            } else if (traitPositive === 'false') {
+                gptn.push(traitValue)
+            } else {
+                gptu.push(traitValue)
+            }
+        } else {
+            if (traitPositive === 'true') {
+                gntp.push(traitValue)
+            } else if (traitPositive === 'false') {
+                gntn.push(traitValue)
+            } else {
+                gntu.push(traitValue)
+            }
+        }
+    }
+    return [gptp, gptn, gptu, gntp, gntn, gntu]
 }
 
 
@@ -931,9 +890,12 @@ Promise.all([treePromise, valuesPromise, coverageMatrixPromise, tablePromise, co
     .then(([tree, valuesData, cmValues, tableData, config]) => {
         const targetNameElement = document.getElementById('tree-gene-name')
 
-        const plotWrapper = function (event, currentGene) {
+        // load colorful bars below tree
+        const baseMetadata = loadTreeMetadata(cmValues.data, valuesData, config)
+
+        const plotWrapper = (event, currentGene) => {
             targetNameElement.innerHTML = currentGene
-            updateTreeMetadata(tree, currentGene, cmValues.data, valuesData, config['colors'])
+            updateTreeGeneColors(tree, currentGene, baseMetadata, cmValues.data, valuesData, config)
         }
 
         // draw plot

@@ -32,54 +32,78 @@
 <body>
 
 
-<div id="container-left">
+<div id="container-left" class="container">
 
-    <div class="container" id="tree-and-tables">
-        <div class="plot-title">
-            <h1 style="display: inline">Tree: </h1>
-            <h2 id="tree-gene-name"></h2>
+    <h1 id="trait-name">Placeholder</h1>
+
+    <div class="accordion" id="metadata-accordion">
+        <div class="accordion-item">
+            <h4 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#metadata-collapse" aria-expanded="false" aria-controls="metadata-collapse">
+                    Metadata
+                </button>
+            </h4>
+            <div id="metadata-collapse" class="accordion-collapse collapse">
+                <div class="accordion-body">
+                    <code id="metadata-content" class="whitespace">Placeholder</code>
+                </div>
+            </div>
         </div>
 
-        <div id="tree"></div>
-
-        <h1>Genes</h1>
-        <div> Toggle column:
-            <div id="vis-toggler"></div>
+        <div class="accordion-item" id="trait-metadata" hidden>
+            <h4 class="accordion-header">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#trait-collapse" aria-expanded="true" aria-controls="trait-collapse">
+                    Trait info
+                </button>
+            </h4>
+            <div id="trait-collapse" class="accordion-collapse collapse show">
+                <div class="accordion-body">
+                    <code id="trait-content" class="whitespace">Placeholder</code>
+                </div>
+            </div>
         </div>
-        <table id="result-tsv"></table>
-
-        <h1>Coverage matrix</h1>
-        <table id="coverage-matrix"></table>
-
     </div>
+
+
+    <div class="plot-title">
+        <h2 style="display: inline">Tree: </h2>
+        <h4 id="tree-gene-name"></h4>
+    </div>
+
+    <div id="tree"></div>
+
+    <h2>Genes</h2>
+    <div> Toggle column:
+        <div id="vis-toggler"></div>
+    </div>
+    <table id="result-tsv"></table>
+
+    <h2>Coverage matrix</h2>
+    <table id="coverage-matrix"></table>
 
 </div>
 
 <div id="container-right">
 
-    <div>
+    <div id="pie-container">
         <div class="plot-title">
-            <h1 style="display: inline">Pie: </h1>
-            <h2 id="pie-gene-name"></h2>
+            <h2 style="display: inline">Pie: </h2>
+            <h4 id="pie-gene-name"></h4>
         </div>
         <div id="pie"></div>
     </div>
 
     <div id="histogram-container">
         <div class="plot-title">
-            <h1 style="display: inline">Histogram: </h1>
-            <h2 id="histogram-gene-name"></h2>
+            <h2 style="display: inline">Histogram: </h2>
+            <h4 id="histogram-gene-name"></h4>
         </div>
         <div id="histogram"></div>
     </div>
 
 </div>
-
-<div class="container">
-    <h1>Metadata</h1>
-    <code id="metadata-div"></code>
-</div>
-
 
 </body>
 </html>

@@ -149,7 +149,7 @@ def save_result_df(trait: str, ns: MockNamespace, result_df: pd.DataFrame):
             try:
                 meta_data['info'] = ns.trait_info_df.loc[trait].to_dict()
             except KeyError:
-                meta_data['info'] = 'None'
+                pass
 
         json.dump(meta_data, f, indent=4)
 

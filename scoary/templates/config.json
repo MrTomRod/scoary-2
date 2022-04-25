@@ -1,30 +1,36 @@
 {
   "default-hidden-cols": ["sensitivity", "specificity", "odds_ratio", "contrasting", "supporting", "opposing", "best", "worst", "pval"],
   "sanitize-genes": true,
-  "tree-height": 400,
-  "color-scale": [
-    "yellow",
-    "red"
-  ],
   "colors": {
-    "_1": "pie & hist",
     "g+t+": "#1f78b4",
     "g+t-": "#a6cee3",
     "g+t?": "#e0f4ff",
     "g-t+": "#b2df8a",
     "g-t-": "#33a02c",
-    "g-t?": "#edffdf",
-    "_2": "tree",
-    "g+": "#000000",
-    "g-": "#e3e3e3",
-    "t+": "red",
-    "t-": "yellow",
-    "t?": "#ffffff"
+    "g-t?": "#edffdf"
   },
-  "gene-link": "https://dialact.bioinformatics.unibe.ch/gene/{gene}",
-  "genes-links": {
-    "gene trait matching": "https://dialact.bioinformatics.unibe.ch/gene-trait-matching/?g1={have-isolates}&g2={lack-isolates}",
-    "compare genes": "https://dialact.bioinformatics.unibe.ch/compare-genes/?genes={all-genes}"
+  "tree-config": {
+    "type": "Hierarchical",
+    "height": 400,
+    "leaf-nodes": {
+      "g+": {"shape": "hexagon", "fillColour": "#000000"},
+      "g-": {"shape": "diamond", "fillColour": "#e3e3e3"}
+    },
+    "color-scale": ["yellow", "red"],
+    "metadata-bars": {
+      "g+": {"colour": "#000000", "label": "present"},
+      "g-": {"colour": "#e3e3e3", "label": "absent"},
+      "t+": {"colour": "red", "label": "present"},
+      "t-": {"colour": "yellow", "label": "absent"},
+      "t?": {"colour": "#ffffff", "label": "unclear"}
+    }
   },
-  "concat-string": "+"
+  "link-config": {
+    "single-gene": "https://dialact.bioinformatics.unibe.ch/gene/{gene}",
+    "many-genes": {
+      "gene trait matching": "https://dialact.bioinformatics.unibe.ch/gene-trait-matching/?g1={have-isolates}&g2={lack-isolates}",
+      "compare genes": "https://dialact.bioinformatics.unibe.ch/compare-genes/?genes={all-genes}"
+    },
+    "concat-string": "+"
+  }
 }

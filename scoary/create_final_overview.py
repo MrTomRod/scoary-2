@@ -174,11 +174,11 @@ def create_final_overview(overview_ds: pd.DataFrame, ns: MockNamespace, isolate_
         json.dump(overview_ds.to_dict('split'), f)
         f.write(' -->\n')
 
-    for file_name in ['overview', 'trait']:
-        for file_type in ['html', 'css', 'js']:
-            # todo: copy insead of symlink
-            import os
-            os.symlink(src=f'{ROOT_DIR}/templates/{file_name}.{file_type}', dst=f'{ns.outdir}/{file_name}.{file_type}')
+    files = [f'{file_name}.{file_type}' for file_type in ('html', 'css', 'js') for file_name in ('overview', 'trait')]
+    files.append('config.json')
+    import os
+    for file in files:
+        os.symlink(src=f'{ROOT_DIR}/templates/{file}', dst=f'{ns.outdir}/{file}')
     copy(src=f'{ROOT_DIR}/templates/favicon.ico', dst=f'{ns.outdir}/favicon.ico')
 
     # create color bar, save
