@@ -180,7 +180,8 @@ def load_info_file(
 
     if expected_overlap_set is not None:
         overlap_size = len(set.intersection(set(info_df.index), expected_overlap_set))
-        assert overlap_size > 0, f'The {merge_col}s in {info_file} do not match any {merge_col}s in {reference_file}'
+        if overlap_size == 0:
+            logger.warning(f'The {merge_col}s in {info_file} do not match any {merge_col}s in {reference_file}')
         logger.info(f'Loaded descriptions for {overlap_size} {merge_col}s')
 
     logger.info(f'Loaded {merge_col} descriptions. columns={info_df.columns.tolist()}')

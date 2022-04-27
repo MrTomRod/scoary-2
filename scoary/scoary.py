@@ -47,7 +47,7 @@ def scoary(
     )
 
     # dynamically set recursion limit, should work for ~ 13'000 isolates
-    _recursion_limit = 100 + len(traits_df.index) ** 2
+    _recursion_limit = max(1000, 100 + len(traits_df.index) ** 2)
     logger.warning(f'Setting recursion limit to {_recursion_limit}')
     sys.setrecursionlimit(_recursion_limit)
 

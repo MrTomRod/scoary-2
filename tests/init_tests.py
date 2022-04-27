@@ -50,7 +50,15 @@ DATA = {
         'traits-lc-meta': 'LC-meta.tsv',
         'traits-gc-vol': 'GC-VOL.tsv',
         'traits-gc-vol-meta': 'none-meta.tsv',
-    }
+    },
+    'full_ds': {
+        'genes': 'N0.tsv',
+        'gene-info': 'N0_best_names.tsv',
+        'isolate-info': 'isolate_info.tsv',
+        'traits': 'traits.tsv',
+        'trait-info': 'trait_info.tsv',
+    },
+
 }
 for tree_id in range(5):
     DATA['bigger_ds'][f'genes-{tree_id}'] = f'pres_abs_tree_id_{tree_id}.csv'

@@ -1,6 +1,4 @@
 {
-  "default-hidden-cols": ["sensitivity", "specificity", "odds_ratio", "contrasting", "supporting", "opposing", "best", "worst", "pval"],
-  "sanitize-genes": true,
   "colors": {
     "g+t+": "#1f78b4",
     "g+t-": "#a6cee3",
@@ -9,6 +7,11 @@
     "g-t-": "#33a02c",
     "g-t?": "#edffdf"
   },
+  "table-config": {
+    "sanitize-genes": true,
+    "default-hidden-cols": ["sensitivity", "specificity", "odds_ratio", "contrasting", "supporting", "opposing", "best", "worst", "pval"],
+    "float-cols": ["pval", "qval", "pval_empirical", "best", "worst"]
+  },
   "tree-config": {
     "type": "Hierarchical",
     "height": 400,
@@ -16,13 +19,13 @@
       "g+": {"shape": "hexagon", "fillColour": "#000000"},
       "g-": {"shape": "diamond", "fillColour": "#e3e3e3"}
     },
-    "color-scale": ["yellow", "red"],
-    "metadata-bars": {
-      "g+": {"colour": "#000000", "label": "present"},
-      "g-": {"colour": "#e3e3e3", "label": "absent"},
-      "t+": {"colour": "red", "label": "present"},
-      "t-": {"colour": "yellow", "label": "absent"},
-      "t?": {"colour": "#ffffff", "label": "unclear"}
+      "color-scale": ["yellow", "red"],
+      "metadata-bars": {
+        "g+": {"colour": "#000000", "label": "present"},
+        "g-": {"colour": "#e3e3e3", "label": "absent"},
+        "t+": {"colour": "red", "label": "present"},
+        "t-": {"colour": "yellow", "label": "absent"},
+        "t?": {"colour": "#ffffff", "label": "unclear"}
     }
   },
   "link-config": {

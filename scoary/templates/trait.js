@@ -103,7 +103,7 @@ documentReadyPromise.then(() => document.querySelector('#trait-name').textConten
 const configPromise = fetch(`config.json`)
     .then(response => response.json())
     .then(config => {
-        if (config['sanitize-genes']) {
+        if (config['table-config']['sanitize-genes']) {
             config.geneListToArray = (d, i) => d[i].split(',').map((gene) => gene.split('|').slice(-1)[0])
         } else {
             config.geneListToArray = (d, i) => d[i].split(',')
@@ -117,6 +117,13 @@ const configPromise = fetch(`config.json`)
  */
 const metaPromise = fetch(`traits/${trait}/meta.json`)
     .then(response => response.json())
+
+
+/**
+ * Promise for tree.nwk. Returns the dictionary object.
+ */
+const newickPromise = fetch('tree.nwk')
+    .then(response => response.text())
 
 
 /**
@@ -193,13 +200,18 @@ const tablePromise = configPromise.then(config => {
         header: true, download: true, skipEmptyLines: true, delimiter: '\t', newline: '\n',
     }).then(tableData => {
         // Preprocess data
+        const tableConfig = config['table-config']
+        const floatCols = tableConfig['float-cols']
+        const renderFloat = (data, type, row) => parseFloat(data).toPrecision(3)
         tableData.columns = tableData.meta.fields.map(col => {
-            return {'data': col, 'label': col, 'title': col}
+            const column = {'data': col, 'label': col, 'title': col}
+            if (floatCols.includes(col)) column['render'] = renderFloat
+            return column
         })
         tableData.index = tableData['data'].map(col => col['Gene'])
         tableData.orderCol = tableData.meta.fields.indexOf(
             tableData.meta.fields.includes('pval_empirical') ? 'pval_empirical' : 'qval')
-        tableData.hiddenCols = config['default-hidden-cols'].map(col => tableData.meta.fields.indexOf(col))
+        tableData.hiddenCols = tableConfig['default-hidden-cols'].map(col => tableData.meta.fields.indexOf(col))
 
         return tableData
     })
@@ -264,7 +276,7 @@ const isolateInfoPromise = Papa.execPromise('isolate_info.tsv', {
 
     return isolateInfo
 }).catch(() => {
-    console.log('no isolate info')
+    console.info('no isolate info')
     return 'no isolate info'
 })
 
@@ -378,18 +390,17 @@ const coverageMatrixPromise = Promise.all(
  * Hide all shown popovers if a click on a non-popover is registered.
  */
 let popovers = []
-$(document).on("click", (event) => {
-    // ignore clicks on .popover or .has-popover
-    if (Boolean(event.target.closest('.popover, .has-popover'))) {
-        return
-    }
-
-    // hide all popovers
+const hidePopovers = () => {
     while (popovers.length > 0) {
         const popover = popovers.pop()
         bootstrap.Popover.getInstance(popover).hide()
     }
-
+}
+$(document).on("click", (event) => {
+    // ignore clicks on .popover or .has-popover
+    if (!Boolean(event.target.closest('.popover, .has-popover'))) {
+        hidePopovers()
+    }
 })
 
 
@@ -439,6 +450,7 @@ const coverageMatrixTablePromise = Promise.all(
         return `${gene} x ${isolate}`
     }
 
+    if (!cmValues.isNumeric) return cmValues
 
     /**
      * Make genes clickable depending on config.json.
@@ -609,7 +621,7 @@ Promise.all([tablePromise, coverageMatrixTablePromise, valuesPromise, configProm
 Promise.all([tablePromise, metaPromise, valuesPromise, coverageMatrixPromise, configPromise])
     .then(([tableData, metaData, valuesData, cmValues, config]) => {
         if (!valuesData.isNumeric) {
-            console.log('no numeric data')
+            console.info('no numeric data')
             return
         }
 
@@ -706,6 +718,8 @@ Promise.all([coverageMatrixPromise, valuesPromise, configPromise])
         }
 
         const genesPopover = (event, currentGene) => {
+            if (popovers.includes(event.target)) throw 'popover already exists'
+
             event.target.classList.add('has-popover')
 
             new bootstrap.Popover(event.target, {
@@ -721,27 +735,22 @@ Promise.all([coverageMatrixPromise, valuesPromise, configPromise])
 
         // append to click event
         geneClickFunctions.push(genesPopover)
-
-
     })
 
 
-// load newick file (tree)
-const newickPromise = fetch('tree.nwk')
-    .then(response => response.text())
-
-
-const getSize = (element) => {
+const getInnerWidth = (element) => {
     const computedStyle = getComputedStyle(element)
     return element.clientWidth - parseFloat(computedStyle.paddingLeft) - parseFloat(computedStyle.paddingRight)
 }
+
+
 // draw tree
 const treePromise = Promise.all([documentReadyPromise, newickPromise, valuesPromise, configPromise])
     .then(([_, newickTree, valuesData, config]) => {
         // https://www.phylocanvas.gl/examples/metadata-blocks.html
         // https://www.phylocanvas.gl/docs/methods.html
         const treeContainer = document.querySelector("#tree")
-        let currentWidth = getSize(treeContainer.parentElement)
+        let currentWidth = getInnerWidth(treeContainer.parentElement)
         const tree = new phylocanvas.PhylocanvasGL(
             treeContainer, {
                 type: phylocanvas.TreeTypes[config['tree-config']['type']],
@@ -759,7 +768,7 @@ const treePromise = Promise.all([documentReadyPromise, newickPromise, valuesProm
         )
 
         const redrawWrapper = () => {
-            const newWidth = getSize(treeContainer.parentElement)
+            const newWidth = getInnerWidth(treeContainer.parentElement)
             if (newWidth !== currentWidth) {
                 tree.resize(newWidth, config['tree-config']['height'])
                 currentWidth = newWidth
@@ -862,7 +871,7 @@ const calcOrthogeneData = (gene, coverageMatrix, valuesData) => {
         const isolate = isolateData['Isolate']
         const genePositive = isolateData[sanitizedGene].toString() !== '0'
         const traitPositive = valuesData.isolateToTrait[isolate]
-        const traitValue = valuesData.isolateToValue[isolate]
+        const traitValue = valuesData.isNumeric ? valuesData.isolateToValue[isolate] : null
 
         if (genePositive) {
             if (traitPositive === 'true') {

@@ -10,12 +10,13 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.collections import PatchCollection, QuadMesh
 from matplotlib.patches import Rectangle
-from matplotlib.colors import LogNorm
+from matplotlib.colors import LogNorm, ListedColormap, Colormap, LinearSegmentedColormap
 
 from .utils import MockNamespace, ROOT_DIR
 
 
 def plot_dendrogram(linkage_matrix: np.ndarray, labels: [str], ax: Axes) -> {}:
+    # no recursion problem here. Works with up to 20'000 isolates, becomes more of a memory problem.
     dendrogram_params = hierarchy.dendrogram(
         linkage_matrix,
         orientation='left',
@@ -53,12 +54,12 @@ def add_clickable_patches(patch_names, fig: Figure, ax: Axes):
     fig.add_artist(pc)
 
 
-def plot_qvals(qvals: pd.DataFrame, fig: Figure, ax: Axes, cmap: str = None) -> [QuadMesh]:
+def plot_qvals(qvals: pd.DataFrame, fig: Figure, ax: Axes, cmaps: {str: str | Colormap}) -> [QuadMesh]:
     # determine y intervals: [0, 10, 20, ...]
     y = np.arange(start=0, stop=len(qvals.index) * 10 + 1, step=10)
 
     pcms = []
-    for i, col in enumerate(qvals.columns):
+    for i, (col, cmap) in enumerate(cmaps.items()):
         # determine x intervals: [0, 1] / [1, 2] / ...
         x = np.array([i, i + 1])
 
@@ -161,10 +162,15 @@ def create_final_overview(overview_ds: pd.DataFrame, ns: MockNamespace, isolate_
     overview_ds = overview_ds.reindex(dendrogram_params['ivl'])
 
     # plot qvals
-    cols = ['min_qval', 'min_pval_empirical']
-    cols = [c for c in cols if c in overview_ds.columns]
-
-    pcms = plot_qvals(overview_ds[cols], fig=fig, ax=ax_colorbar, cmap='afmhot')
+    cmaps = {
+        'min_qval': 'Spectral',
+        'min_pval_empirical': LinearSegmentedColormap.from_list(
+            name='pval_emp_cbar',
+            colors=['#590d22', '#800f2f', '#a4133c', '#c9184a', '#ff4d6d',
+                    '#ff758f', '#ff8fa3', '#ffb3c1', '#ffccd5', '#fff0f3'])
+    }
+    cols = [col for col in cmaps.keys() if col in overview_ds.columns]
+    pcms = plot_qvals(overview_ds[cols], fig=fig, ax=ax_colorbar, cmaps=cmaps)
 
     # save plot
     plt.savefig(f'{ns.outdir}/overview_plot.svg', format='svg')
