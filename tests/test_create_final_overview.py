@@ -1,5 +1,5 @@
 import os
-import shutil
+from subprocess import call
 from init_tests import *
 from scoary.create_final_overview import create_final_overview
 from scoary.load_traits import load_binary
@@ -12,9 +12,8 @@ class Test(TestCase):
         self.fake_ns = MockNamespace()
         self.fake_ns.outdir = self.temp_dir
 
-        # if os.path.isdir(self.temp_dir):
-        #     shutil.rmtree(self.temp_dir)
-        # os.makedirs(self.temp_dir)
+        os.makedirs(self.temp_dir, exist_ok=True)
+        call(f'rm -rf {self.temp_dir}/*', shell=True)
 
     def tearDown(self) -> None:
         print(f'Open file://{self.temp_dir} to see the result!')

@@ -39,7 +39,9 @@ def stringify_timedelta(delta: timedelta) -> str:
 
 
 def print_progress(
-        i: int, n: int, message: str,
+        i: int,
+        n: int,
+        message: str,
         start_time: datetime,
         message_width: int = 30,
         default_width: int = 100,
@@ -49,6 +51,7 @@ def print_progress(
     message = f"{shorten(message, width=message_width, placeholder='...'):{message_width}s}"
     assert len(message) == message_width
 
+    n = max(1, n)
     i_safe = min(max(1, i), n)
     time_left = stringify_timedelta((datetime.now() - start_time) / i_safe * (n - i_safe))  # 5 chars
     percentage = f"{f'{i / n:.0%}':>4s}"  # 4 chars

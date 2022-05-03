@@ -1,4 +1,11 @@
 "use strict"
+
+/**
+ * todo:
+ * - nan in json
+ */
+
+
 for (const attr of ['table', 'thead', 'tbody', 'tr', 'td', 'th']) {
     bootstrap.Tooltip.Default.allowList[attr] = []
 }
@@ -9,139 +16,212 @@ let overviewDf
 let patches
 
 
+/**
+ * Returns a promise for Papa.parse.
+ *
+ * @param {string} file File to be loaded using Papa.parse.
+ * @param {Object} config Configuration object, see https://www.papaparse.com/docs#config.
+ */
+Papa.execPromise = function (file, config) {
+    return new Promise(function (complete, error) {
+        config.complete = complete
+        config.error = error
+        Papa.parse(file, config)
+    })
+}
+const overviewPromise = Papa.execPromise('overview.tsv', {
+    header: true, download: true, skipEmptyLines: true, delimiter: '\t', newline: '\n',
+}).then(overviewData => {
+    // Preprocess data
+    overviewData.index = overviewData['data'].map(col => col['Trait'])
+    overviewDf = overviewData
+    return overviewData
+}).catch(() => {
+    console.info('no isolate info')
+    return 'no isolate info'
+})
+
 const loadSvgPromise = fetch('overview_plot.svg', {method: 'GET', headers: {}}).then(function (response) {
     return response.text()
 }).then((data) => {
     svgContainer.innerHTML = data
     svgDocument = svgContainer.firstElementChild
-    overviewDf = JSON.parse(svgContainer.childNodes[4].data)
     patches = svgDocument.getElementById('clickable-patches')
 }).catch((err) => {
     alert('Failed to load overview_plot.svg')
-    console.log(this, err)
+    console.warn(this, err)
 })
 
-
 function createTooltipTitle() {
-    const elementIndex = getElementIndex(this)
-    return overviewDf['index'][elementIndex]
+    const elementIndex = this.getAttribute('index')
+    const traitName = overviewDf['index'][elementIndex]
+    return `<a href="trait.html?trait=${traitName}">${traitName}</a>`
+}
+
+const isFloat = (n) => {
+    n = parseFloat(n)
+    if (Number.isNaN(n)) return false
+    return Number(n) === n && n % 1 !== 0
 }
 
 function createTooltipContent() {
-    const elementIndex = getElementIndex(this)
-    const traitName = overviewDf['index'][elementIndex]
+    const elementIndex = this.getAttribute('index')
+    const traitData = overviewDf.data[elementIndex]
 
     let html = '<table id="popoverTable" class="table"><tbody>'
 
-    overviewDf["columns"].forEach((x, i) => {
-        const title = x.replace(/^(min_)/, '')
-        const value = overviewDf['data'][elementIndex][i]
-        console.log(title, value)
+    overviewDf.meta.fields.forEach((key, i) => {
+        if (key === 'Trait') return
+        let value = traitData[key]
+        if (value === '') return
+        key = key.replace(/^(min_)/, '')
+        if (isFloat(value)) {
+            value = parseFloat(value).toPrecision(2)
+        }
+
         html += `
-                <tr>
-                    <th scope="row">${title}</th>
-                    <td>${value.toPrecision(2)}</td>
-                </tr>`
+            <tr>
+                <th scope="row">${key}</th>
+                <td>${value}</td>
+            </tr>`
     })
 
     html += '</tbody></table>'
     return html
 }
 
-// activate clickable boxes popovers
-loadSvgPromise.then(function (result) {
-        Array.from(patches.children).forEach((patch, index) => {
-            new bootstrap.Popover(patch, {
+Promise.all([loadSvgPromise, overviewPromise]).then(() => {
+    const openPopovers = []
+    const patchesElement = document.getElementById('clickable-patches')
+
+    const hideAllPopovers = () => {
+        while (openPopovers.length) {
+            const target = openPopovers.pop()
+            bootstrap.Popover.getInstance(target).hide()
+        }
+    }
+    patchesElement.addEventListener('mouseover', function (event) {
+        let instance = bootstrap.Popover.getInstance(event.target)
+        if (instance === null) {
+            instance = new bootstrap.Popover(event.target, {
                 container: 'body',
-                trigger: 'hover',
+                trigger: 'manual',
                 html: true,
                 title: createTooltipTitle,
-                content: createTooltipContent
+                content: createTooltipContent,
             })
+        }
+
+        instance.show()
+        hideAllPopovers()
+        openPopovers.push(event.target)
+    })
+    patchesElement.addEventListener('auxclick', openTraitsTab)
+    document.addEventListener('click', function (event) {
+        const isPopoverOrSvg = event.target.closest('.popover, svg') !== null
+        if (isPopoverOrSvg) return
+        hideAllPopovers()
+    })
+    Array.from(patchesElement.children).forEach((patch, index) => {
+        patch.setAttribute('index', index)
+    })
+    patchesElement.addEventListener('click', toggleTrait)
+})
+
+
+// Open traits page in new tab
+function openTraitsTab(event) {
+    const traitId = event.target.getAttribute('index')
+    const traitName = overviewDf.index[traitId]
+    const url = `./trait.html?trait=${traitName}`
+    console.info(`FORWARDING TO: ${url}`)
+    // window.location.href = url
+    window.open(url, '_blank').focus()
+}
+
+let ax4
+const selected = []
+
+const toggleTrait = (eventOrId) => {
+    let target, index
+    if (Number.isInteger(eventOrId)) {
+        index = eventOrId
+        target = ax4.children[eventOrId]
+    } else {
+        target = eventOrId.target
+        index = target.getAttribute('index')
+    }
+    if (selected.includes(index)) {
+        for (var i = 0; i < selected.length; i++) {
+            if (selected[i] === index) selected.splice(i, 1)
+        }
+        target.style['fill'] = 'rgb(255, 255, 255)'
+        target.style['fill-opacity'] = '0.000001'
+    } else {
+        selected.push(index)
+        target.style['fill'] = 'yellow'
+        target.style['fill-opacity'] = '0.2'
+    }
+}
+
+const copySelectedToClipboard = () => {
+    const content = selected.map(index => overviewDf.index[index]).join('\t')
+    console.info('Copying to clipboard:', content)
+    copyToClipboard(content)
+}
+
+function copyToClipboard(text) {
+    // navigator clipboard api needs a secure context (https)
+    if (navigator.clipboard && window.isSecureContext) {
+        // navigator clipboard api method'
+        return navigator.clipboard.writeText(text);
+    } else {
+        // text area method
+        let textArea = document.createElement("textarea")
+        textArea.value = text
+        textArea.style.position = "fixed"
+        textArea.style.left = "-999999px"
+        textArea.style.top = "-999999px"
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+        return new Promise((res, rej) => {
+            document.execCommand('copy') ? res() : rej()
+            textArea.remove()
         })
     }
-)
+}
+
+const deselectAll = () => {
+    while (selected.length) {
+        const target = ax4.children[selected.pop()]
+        target.style['fill'] = 'rgb(255, 255, 255)'
+        target.style['fill-opacity'] = '0.000001'
+    }
+}
 
 // // activate clickable boxes
-loadSvgPromise.then(function (result) {
-        Array.from(patches.children).forEach((patch, index) => {
-            patch.addEventListener("click", redirect)
-        })
-    }
-)
+Promise.all([loadSvgPromise, overviewPromise]
+).then(([result, __]) => {
+    const copyButton = document.getElementById('copy-button')
+    copyButton.addEventListener('click', copySelectedToClipboard)
 
-// redirect to traits page
-function redirect(event) {
-    const elementIndex = getElementIndex(this)
-    const traitName = overviewDf['index'][elementIndex]
-    console.log(`FORWARDING TO: ${traitName}`)
-    window.location.href = `./trait.html?trait=${traitName}`;
-}
-
-function getElementIndex(element) {
-    return [...element.parentNode.children].indexOf(element);
-}
+    const deselectButton = document.getElementById('deselect-button')
+    deselectButton.addEventListener('click', deselectAll)
 
 
-// function Counter(array) {
-//     let count = {}
-//     array.forEach(val => count[val] = (count[val] || 0) + 1)
-//     return count
-// }
-//
-// function getMsCpd(el) {
-//     return el.firstElementChild.innerHTML.split(' -->', 1)[0].split('<!-- ')[1].split(':')
-// }
-//
-// function highlightCpd(cpdName) {
-//     console.log(cpdName)
-//     for (var el of document.getElementById('matplotlib.axis_2').children) {
-//         const currCpdName = getMsCpd(el)[1]
-//         if (currCpdName === cpdName) {
-//             el.style['stroke'] = 'yellow'
-//             el.style['stroke-width'] = '1px'
-//         } else {
-//             el.style['stroke'] = ''
-//             el.style['stroke-width'] = ''
-//         }
-//     }
-// }
-//
-// function clickOnCpd(e) {
-//     highlightCpd(getMsCpd(e.target.parentElement.parentElement)[1])
-// }
-//
-// const cpds = Array.prototype.slice.call(document.getElementById('matplotlib.axis_2').children).map(el => getMsCpd(el)[1])
-// const cpdCounts = Counter(cpds)
-//
-// for (var el of document.getElementById('matplotlib.axis_2').children) {
-//     const data = getMsCpd(el)
-//     const cpdName = data[1]
-//     const dataSet = data[0]
-//
-//     if (cpdCounts[cpdName] > 1) {
-//         el.style['fill'] = 'darkred'
-//     }
-//
-//     el.addEventListener('contextmenu', function (e) {
-//         clickOnCpd(e)
-//     })
-//
-//     bbox = el.getBBox()
-//     let a = document.createElementNS("http://www.w3.org/2000/svg", "a")
-//     a.setAttribute('href', `${dataSet}/gm_prob/${cpdName}-genes.html`)
-//
-//     let newRect = document.createElementNS("http://www.w3.org/2000/svg", "rect")
-//     newRect.setAttribute("x", bbox.x)
-//     newRect.setAttribute("y", bbox.y)
-//     newRect.setAttribute("width", bbox.width)
-//     newRect.setAttribute("height", bbox.height)
-//     newRect.setAttribute("fill", "transparent")
-//     newRect.setAttribute("data-compound", cpdName)
-//     newRect.addEventListener('click', function () {
-//         console.log(cpdName)
-//     })
-//
-//     a.append(newRect)
-//     el.append(a)  // in front
-// }
+    ax4 = document.getElementById('clickable-patches')
+
+    const slimSelect = new SlimSelect({
+        select: '#slim-select',
+        placeholder: 'Click here to select traits',
+        data: overviewDf.index.map((trait, index) => {
+            return {text: trait, value: index.toString()}
+        }),
+        onChange: function () {
+            const selectId = parseInt(slimSelect.selected())
+            toggleTrait(selectId)
+        },
+    })
+})
+

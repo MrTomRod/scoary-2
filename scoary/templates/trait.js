@@ -130,19 +130,33 @@ const newickPromise = fetch('tree.nwk')
  * Show metadata.
  */
 metaPromise.then(metaData => {
-    const applyMetadata = (elementId, dictionary) =>
-        document.getElementById(elementId).textContent = JSON.stringify(dictionary, null, '\t')
+    // save default metadata
+    document.getElementById('metadata-content').textContent = JSON.stringify(metaData, null, '\t')
+
 
     if (metaData.hasOwnProperty('info')) {
         // add trait info
-        applyMetadata('trait-content', metaData.info)
+
+        let html = '<table id="popoverTable" class="table"><tbody>'
+
+        for (const [key, value] of Object.entries(metaData.info)) {
+            html += `
+                <tr>
+                    <th scope="row"><code>${key}</code></th>
+                    <td><code>${value}</code></td>
+                </tr>`
+        }
+
+        document.getElementById('trait-content').innerHTML=html
         // show element
         document.getElementById('trait-metadata').hidden = false
         // do not show metaData.info twice
         delete metaData.info
+
+        html += '</tbody></table>'
+
     }
 
-    applyMetadata('metadata-content', metaData)
 })
 
 
@@ -397,8 +411,8 @@ const hidePopovers = () => {
     }
 }
 $(document).on("click", (event) => {
-    // ignore clicks on .popover or .has-popover
-    if (!Boolean(event.target.closest('.popover, .has-popover'))) {
+    // ignore clicks on .popover
+    if (!Boolean(event.target.closest('.popover, table'))) {
         hidePopovers()
     }
 })
@@ -487,16 +501,23 @@ const coverageMatrixTablePromise = Promise.all(
     }
 
     // Create popover events using bootstrap (https://getbootstrap.com/docs/5.1/components/popovers/)
-    const allGeneCells = document.querySelectorAll('#coverage-matrix td.gene-count')
-    Array.from(allGeneCells).forEach((patch, index) => {
-        new bootstrap.Popover(patch, {
-            container: '#container-left',
-            trigger: 'click',
-            html: true,
-            title: genePopoverTitle,
-            content: genePopoverContent
-        })
+    const allGeneCells = document.querySelectorAll('#coverage-matrix tbody')
+
+    document.getElementById('coverage-matrix').addEventListener('click', (event) => {
+        if (!event.target.classList.contains('gene-count')) return
+        let instance = bootstrap.Popover.getInstance(event.target)
+        if (instance === null) {
+            instance = new bootstrap.Popover(event.target, {
+                container: '#container-left',
+                trigger: 'manual',
+                html: true,
+                title: genePopoverTitle,
+                content: genePopoverContent
+            })
+        }
+        instance.show()
     })
+
 
     return cmValues
 })
@@ -718,17 +739,17 @@ Promise.all([coverageMatrixPromise, valuesPromise, configPromise])
         }
 
         const genesPopover = (event, currentGene) => {
-            if (popovers.includes(event.target)) throw 'popover already exists'
-
-            event.target.classList.add('has-popover')
-
-            new bootstrap.Popover(event.target, {
-                container: '#container-left',
-                trigger: 'click',
-                html: true,
-                title: currentGene,
-                content: genesPopoverContent
-            }).show()
+            let instance = bootstrap.Popover.getInstance(event.target)
+            if (instance === null) {
+                instance = new bootstrap.Popover(event.target, {
+                    container: '#container-left',
+                    trigger: 'manual',
+                    html: true,
+                    title: currentGene,
+                    content: genesPopoverContent
+                })
+            }
+            instance.show()
 
             popovers.push(event.target)
         }

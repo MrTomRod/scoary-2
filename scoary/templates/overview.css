@@ -12,15 +12,30 @@
 }
 
 .right-container {
-    pointer-events: none;
     position: fixed;
-    top: 50%;
+    display: grid;
+    right: 0;
     transform: translateY(-50%);
-    width: 100%;
-    padding-right: var(--bs-gutter-x, .75rem);
-    padding-left: var(--bs-gutter-x, .75rem);
-    margin-right: auto;
-    margin-left: auto;
+    top: 50%;
+}
+
+.popover {
+    max-width: 550px;
+    max-height: 100%;
+    overflow: auto;
+}
+
+.popover-header a {
+    color: unset
+}
+
+#highlighter {
+    width: 12rem;
+}
+
+.placeholder {
+    opacity: unset;
+    background-color: unset;
 }
 
 /* imitate bootstrap container shrinking */

@@ -159,7 +159,9 @@ def create_final_overview(overview_ds: pd.DataFrame, ns: MockNamespace, isolate_
     dendrogram_params = plot_dendrogram(linkage_matrix, labels=jaccard_df.columns.values, ax=ax_dendrogram)
 
     # reindex overview_ds according to order in dendrogram
-    overview_ds = overview_ds.reindex(dendrogram_params['ivl'])
+    dendrogram_index = dendrogram_params['ivl'][::-1]
+    overview_ds = overview_ds.reindex(dendrogram_index)
+    overview_ds.index.name = 'Trait'
 
     # plot qvals
     cmaps = {
@@ -175,10 +177,6 @@ def create_final_overview(overview_ds: pd.DataFrame, ns: MockNamespace, isolate_
     # save plot
     plt.savefig(f'{ns.outdir}/overview_plot.svg', format='svg')
     plt.close()
-    with open(f'{ns.outdir}/overview_plot.svg', 'a') as f:
-        f.write('<!-- ')
-        json.dump(overview_ds.to_dict('split'), f)
-        f.write(' -->\n')
 
     files = [f'{file_name}.{file_type}' for file_type in ('html', 'css', 'js') for file_name in ('overview', 'trait')]
     files.append('config.json')
@@ -190,5 +188,10 @@ def create_final_overview(overview_ds: pd.DataFrame, ns: MockNamespace, isolate_
     # create color bar, save
     save_colorbars(pcms, [c.removeprefix('min_') for c in cols], out=f'{ns.outdir}/overview_colorbar.svg')
 
+    if ns.trait_info_df is not None:
+        overview_ds = overview_ds \
+            .merge(ns.trait_info_df, left_index=True, right_index=True, how='left', copy=False) \
+            .reindex(dendrogram_index)  # merging destroys index order
+
     # save overview_ds (reversed index, so the order matches the plot)
-    overview_ds[::-1].to_csv(f'{ns.outdir}/overview.tsv', sep='\t')
+    overview_ds.reindex(dendrogram_index).to_csv(f'{ns.outdir}/overview.tsv', sep='\t')

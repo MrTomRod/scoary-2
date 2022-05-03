@@ -147,11 +147,12 @@ def save_result_df(trait: str, ns: MockNamespace, result_df: pd.DataFrame):
         # add trait info
         if ns.trait_info_df is not None:
             try:
-                meta_data['info'] = ns.trait_info_df.loc[trait].to_dict()
+                info = ns.trait_info_df.loc[trait].to_dict()
+                meta_data['info'] = {k: v for k, v in info.items() if not pd.isna(v)}
             except KeyError:
                 pass
 
-        json.dump(meta_data, f, indent=4)
+        json.dump(meta_data, f, indent=4, allow_nan=False)
 
     coverage_matrix = ns.genes_orig_df[ns.genes_orig_df.index.isin(result_df.Gene)].T
     coverage_matrix.index.name = 'Isolate'

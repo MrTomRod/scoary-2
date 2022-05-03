@@ -87,6 +87,11 @@ table, ::after, ::before {
 
 .whitespace {
     white-space: pre;
+    line-break: anywhere;
+}
+
+code {
+    color: black;
 }
 
 .popover {
