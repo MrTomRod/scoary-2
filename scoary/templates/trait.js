@@ -464,7 +464,7 @@ const coverageMatrixTablePromise = Promise.all(
         return `${gene} x ${isolate}`
     }
 
-    if (!cmValues.isNumeric) return cmValues
+    if (!cmValues.isGeneList) return cmValues
 
     /**
      * Make genes clickable depending on config.json.

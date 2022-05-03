@@ -41,6 +41,15 @@ const overviewPromise = Papa.execPromise('overview.tsv', {
     return 'no isolate info'
 })
 
+overviewPromise.then((overviewData) => {
+    if (overviewData.data.length == 1) {
+        const traitName = overviewData.data[0]['Trait']
+        const url = `./trait.html?trait=${traitName}`
+        console.info(`FORWARDING TO: ${url}`)
+        window.location.href = url
+    }
+})
+
 const loadSvgPromise = fetch('overview_plot.svg', {method: 'GET', headers: {}}).then(function (response) {
     return response.text()
 }).then((data) => {

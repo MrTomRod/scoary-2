@@ -125,7 +125,9 @@ def scoary(
         end='\n'
     )
     overview_ds = create_final_overview_df(traits, res)
-    if overview_ds is not None and len(overview_ds) >= 2:
+    if overview_ds is None and len(overview_ds) == 0:
+        logging.warning(f'no content for overview_ds')
+    else:
         create_final_overview(overview_ds, ns, isolate_info_df)
 
     print(CITATION)

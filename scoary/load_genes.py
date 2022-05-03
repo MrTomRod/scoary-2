@@ -13,9 +13,14 @@ def filter_df(df: pd.DataFrame, restrict_to: [str] = None, ignore: [str] = None)
         df = df[[c for c in df.columns if c not in ignore]]
 
     if restrict_to is not None:
-        cols_missing = set(restrict_to).difference(set(df.columns))
-        assert len(cols_missing) == 0, f'Some strains in restrict_to were not found: {cols_missing}'
-        cols_dropped = set(restrict_to).difference(set(df.columns))
+        restrict_to = set(restrict_to)
+        have_cols = set(df.columns)
+        cols_missing = restrict_to.difference(have_cols)
+        assert len(cols_missing) == 0, f'Some strains in restrict_to were not found:' \
+                                       f'\n{cols_missing=}' \
+                                       f'\n{restrict_to=}' \
+                                       f'\n{have_cols=}'
+        cols_dropped = restrict_to.difference(set(df.columns))
         logger.info(f'Cols kept: {list(restrict_to)}')
         logger.info(f'Cols dropped: {list(cols_dropped)}')
         df = df[[c for c in df.columns if c in restrict_to]]

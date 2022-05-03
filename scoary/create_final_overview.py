@@ -121,63 +121,68 @@ def create_final_overview(overview_ds: pd.DataFrame, ns: MockNamespace, isolate_
     if isolate_info_df is not None:
         isolate_info_df.to_csv(f'{ns.outdir}/isolate_info.tsv', sep='\t')
 
-    # prepare data, create linkage_matrix
-    pre_jaccard = ns.traits_df[overview_ds.index].astype('float').T
-    pre_jaccard = ((pre_jaccard.fillna(0.5) * 2) - 1).astype('int')  # False -> -1, NAN -> 0, True -> 1
+    overview_ds_index = list(overview_ds.index)
+    if len(overview_ds) > 1:
+        # prepare data, create linkage_matrix
+        pre_jaccard = ns.traits_df[overview_ds.index].astype('float').T
+        pre_jaccard = ((pre_jaccard.fillna(0.5) * 2) - 1).astype('int')  # False -> -1, NAN -> 0, True -> 1
 
-    # whether class=0 and class=1 are arbitrary. Calculate both possibilities, take minimum
-    d1 = cdist(pre_jaccard, pre_jaccard, metric='jaccard')
-    d2 = cdist(pre_jaccard, 0 - pre_jaccard, metric='jaccard')
-    jaccard_distance = np.minimum(d1, d2)
+        # whether class=0 and class=1 are arbitrary. Calculate both possibilities, take minimum
+        d1 = cdist(pre_jaccard, pre_jaccard, metric='jaccard')
+        d2 = cdist(pre_jaccard, 0 - pre_jaccard, metric='jaccard')
+        jaccard_distance = np.minimum(d1, d2)
 
-    jaccard_df = pd.DataFrame(
-        jaccard_distance, columns=pre_jaccard.index, index=pre_jaccard.index
-    )
-    linkage_matrix = hierarchy.linkage(squareform(jaccard_df), 'single')
+        jaccard_df = pd.DataFrame(
+            jaccard_distance, columns=pre_jaccard.index, index=pre_jaccard.index
+        )
+        linkage_matrix = hierarchy.linkage(squareform(jaccard_df), 'single')
 
-    # calculate plot proportions
-    content_height = max(3., len(jaccard_df) / 6)  # height dependent on number of compounds
-    whitespace_abs = 0.6  # absolute amount of whitespace
-    total_height = content_height + whitespace_abs  # total plot height
-    whitespace_rel = whitespace_abs / 3 / total_height  # relative amount of whitespace
+        # calculate plot proportions
+        content_height = max(3., len(jaccard_df) / 6)  # height dependent on number of compounds
+        whitespace_abs = 0.6  # absolute amount of whitespace
+        total_height = content_height + whitespace_abs  # total plot height
+        whitespace_rel = whitespace_abs / 3 / total_height  # relative amount of whitespace
 
-    # create matplotlib figure
-    plt.close()
-    fig = plt.figure(figsize=(7, total_height))
-    gs = fig.add_gridspec(
-        nrows=1, ncols=2, width_ratios=(7, 1),
-        left=0.05, right=0.6, bottom=whitespace_rel * 2, top=1 - whitespace_rel,
-        wspace=0, hspace=0,
-        # wspace=0.05, hspace=0.05,
-    )
+        # create matplotlib figure
+        plt.close()
+        fig = plt.figure(figsize=(7, total_height))
+        gs = fig.add_gridspec(
+            nrows=1, ncols=2, width_ratios=(7, 1),
+            left=0.05, right=0.6, bottom=whitespace_rel * 2, top=1 - whitespace_rel,
+            wspace=0, hspace=0,
+            # wspace=0.05, hspace=0.05,
+        )
 
-    # get axes objects with shared y-axis
-    ax_dendrogram = fig.add_subplot(gs[0, 0])
-    ax_colorbar = fig.add_subplot(gs[0, 1], sharey=ax_dendrogram)
+        # get axes objects with shared y-axis
+        ax_dendrogram = fig.add_subplot(gs[0, 0])
+        ax_colorbar = fig.add_subplot(gs[0, 1], sharey=ax_dendrogram)
 
-    # plot dendrogram
-    dendrogram_params = plot_dendrogram(linkage_matrix, labels=jaccard_df.columns.values, ax=ax_dendrogram)
+        # plot dendrogram
+        dendrogram_params = plot_dendrogram(linkage_matrix, labels=jaccard_df.columns.values, ax=ax_dendrogram)
 
-    # reindex overview_ds according to order in dendrogram
-    dendrogram_index = dendrogram_params['ivl'][::-1]
-    overview_ds = overview_ds.reindex(dendrogram_index)
-    overview_ds.index.name = 'Trait'
+        # reindex overview_ds according to order in dendrogram
+        overview_ds_index = dendrogram_params['ivl'][::-1]
+        overview_ds = overview_ds.reindex(overview_ds_index)
 
-    # plot qvals
-    cmaps = {
-        'min_qval': 'Spectral',
-        'min_pval_empirical': LinearSegmentedColormap.from_list(
-            name='pval_emp_cbar',
-            colors=['#590d22', '#800f2f', '#a4133c', '#c9184a', '#ff4d6d',
-                    '#ff758f', '#ff8fa3', '#ffb3c1', '#ffccd5', '#fff0f3'])
-    }
-    cols = [col for col in cmaps.keys() if col in overview_ds.columns]
-    pcms = plot_qvals(overview_ds[cols], fig=fig, ax=ax_colorbar, cmaps=cmaps)
+        # plot qvals
+        cmaps = {
+            'min_qval': 'Spectral',
+            'min_pval_empirical': LinearSegmentedColormap.from_list(
+                name='pval_emp_cbar',
+                colors=['#590d22', '#800f2f', '#a4133c', '#c9184a', '#ff4d6d',
+                        '#ff758f', '#ff8fa3', '#ffb3c1', '#ffccd5', '#fff0f3'])
+        }
+        cols = [col for col in cmaps.keys() if col in overview_ds.columns]
+        pcms = plot_qvals(overview_ds[cols], fig=fig, ax=ax_colorbar, cmaps=cmaps)
 
-    # save plot
-    plt.savefig(f'{ns.outdir}/overview_plot.svg', format='svg')
-    plt.close()
+        # save plot
+        plt.savefig(f'{ns.outdir}/overview_plot.svg', format='svg')
+        plt.close()
 
+        # create color bar, save
+        save_colorbars(pcms, [c.removeprefix('min_') for c in cols], out=f'{ns.outdir}/overview_colorbar.svg')
+
+    # copy files
     files = [f'{file_name}.{file_type}' for file_type in ('html', 'css', 'js') for file_name in ('overview', 'trait')]
     files.append('config.json')
     import os
@@ -185,13 +190,11 @@ def create_final_overview(overview_ds: pd.DataFrame, ns: MockNamespace, isolate_
         os.symlink(src=f'{ROOT_DIR}/templates/{file}', dst=f'{ns.outdir}/{file}')
     copy(src=f'{ROOT_DIR}/templates/favicon.ico', dst=f'{ns.outdir}/favicon.ico')
 
-    # create color bar, save
-    save_colorbars(pcms, [c.removeprefix('min_') for c in cols], out=f'{ns.outdir}/overview_colorbar.svg')
-
     if ns.trait_info_df is not None:
         overview_ds = overview_ds \
             .merge(ns.trait_info_df, left_index=True, right_index=True, how='left', copy=False) \
-            .reindex(dendrogram_index)  # merging destroys index order
+            .reindex(overview_ds_index)  # merging destroys index order
 
-    # save overview_ds (reversed index, so the order matches the plot)
-    overview_ds.reindex(dendrogram_index).to_csv(f'{ns.outdir}/overview.tsv', sep='\t')
+    # save overview_ds, ensure order matches plot
+    overview_ds.index.name = 'Trait'
+    overview_ds.to_csv(f'{ns.outdir}/overview.tsv', sep='\t')
