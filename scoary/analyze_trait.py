@@ -5,22 +5,37 @@ import json
 import pandas as pd
 from statsmodels.stats.multitest import multipletests
 from fast_fisher.fast_fisher_numba import odds_ratio, test1t as fisher_exact_two_tailed
+from queue import Empty
 
 from .ScoaryTree import ScoaryTree
 from .picking import pick
 from .permutations import permute_trait_picking
 from .progressbar import print_progress
-from .utils import MockNamespace, get_label_to_trait, fisher_id
+from .utils import MockNamespace, get_label_to_trait, fisher_id, grasp_namespace
 
 logger = logging.getLogger('scoary-trait')
 
 
-def analyze_trait(trait: str, ns: MockNamespace):  # -> {str: float} | str | None:
+def worker(q, ns: MockNamespace, result_container: {str: [float | str | None]}, proc_id):
+    new_ns = grasp_namespace(ns)
+
+    while True:
+        try:
+            trait = q.get_nowait()
+        except Empty:
+            break  # completely done
+
+        result_container[trait] = analyze_trait(trait, new_ns, proc_id)
+        q.task_done()
+
+
+def analyze_trait(trait: str, ns: MockNamespace, proc_id: int = None) -> dict | str | None:
     with ns.lock:
         ns.counter.value += 1
+        message = trait if proc_id is None else f'CPU{proc_id} | {trait}'
         print_progress(
             ns.counter.value, len(ns.traits_df.columns),
-            message=trait, start_time=ns.start_time, message_width=25,
+            message=message, start_time=ns.start_time, message_width=25,
             end='\n'
         )
 
@@ -79,25 +94,11 @@ def analyze_trait(trait: str, ns: MockNamespace):  # -> {str: float} | str | Non
 
             result_df.attrs['min_pval_empirical'] = result_df['pval_empirical'][0]
 
-            # print('mtc:', ns.mt_p_method, ns.mt_p_cutoff, len(result_df))
-            # result_df = perform_multiple_testing_correction(
-            #     result_df, col='pval_empirical',
-            #     method=ns.mt_p_method, cutoff=ns.mt_p_cutoff,
-            # )
-            # print('mtc:', ns.mt_p_method, ns.mt_p_cutoff, len(result_df))
-
             if len(result_df) == 0:
                 logging.info(f'Found 0 genes for {trait=} '
                              f'after {ns.mt_p_method}:{ns.mt_p_cutoff} filtration')
                 return None
 
-            # print('permut sc1')
-            # result_df['pval_empirical_scoary_1'] = calculate_confidence_interval_scoary(
-            #     result_df.Gene, all_label_to_gene, tree, label_to_trait, n_permut
-            # )
-            # print('donepermut')
-
-    # print(result_df.to_string())
     save_result_df(trait, ns, result_df)
 
     # return minimal pvalues

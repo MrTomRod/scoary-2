@@ -7,8 +7,10 @@ import logging
 try:
     n_cols = os.get_terminal_size().columns
     DYNAMIC_TERMINAL_WIDTH = True
+    LINEBREAK_CHAR = '\r'
 except Exception:
     DYNAMIC_TERMINAL_WIDTH = False
+    LINEBREAK_CHAR = '\n'
 
 # set function get_terminal_width depending on DYNAMIC_TERMINAL_WIDTH
 if DYNAMIC_TERMINAL_WIDTH:
@@ -46,7 +48,7 @@ def print_progress(
         message_width: int = 30,
         default_width: int = 100,
         sep: str = ' | ',
-        end: str = '\r'
+        end: str = LINEBREAK_CHAR
 ) -> None:
     message = f"{shorten(message, width=message_width, placeholder='...'):{message_width}s}"
     assert len(message) == message_width

@@ -2,7 +2,7 @@ import os
 import sys
 import logging
 import warnings
-from typing import Type
+from typing import Type, Any
 from datetime import datetime
 import pandas as pd
 
@@ -185,6 +185,8 @@ def load_info_file(
         logger.info(f'Loaded descriptions for {overlap_size} {merge_col}s')
 
     logger.info(f'Loaded {merge_col} descriptions. columns={info_df.columns.tolist()}')
+    assert not info_df.index.has_duplicates, \
+        f'{info_file} contains duplicates: {info_df.index[info_df.index.duplicated()]}'
     return info_df
 
 
@@ -244,31 +246,20 @@ class MockNamespace:
     no_pairwise: bool
 
 
-def create_namespace(ns, counter, lock, outdir,
-                     genes_orig_df, genes_bool_df, gene_info_df,
-                     numeric_df, traits_df, trait_info_df,
-                     duplication_df, tree, all_labels,
-                     mt_f_method, mt_f_cutoff, mt_p_method, mt_p_cutoff,
-                     n_permut, all_label_to_gene, random_state, no_pairwise):
-    ns.counter = counter
-    ns.lock = lock
-    ns.outdir = outdir
-    ns.start_time = datetime.now()
-    ns.genes_orig_df = genes_orig_df
-    ns.genes_bool_df = genes_bool_df
-    ns.gene_info_df = gene_info_df
-    ns.numeric_df = numeric_df
-    ns.traits_df = traits_df
-    ns.trait_info_df = trait_info_df
-    ns.duplication_df = duplication_df
-    ns.tree = tree
-    ns.all_labels = all_labels
-    ns.mt_f_method = mt_f_method
-    ns.mt_f_cutoff = mt_f_cutoff
-    ns.mt_p_method = mt_p_method
-    ns.mt_p_cutoff = mt_p_cutoff
-    ns.n_permut = n_permut
-    ns.all_label_to_gene = all_label_to_gene
-    ns.random_state = random_state
-    ns.no_pairwise = no_pairwise
+def create_namespace(ns, properties: {str: Any}):
+    for name in MockNamespace.__dict__['__annotations__'].keys():
+        setattr(ns, name, properties[name])
     return ns
+
+
+def grasp_namespace(ns) -> MockNamespace:
+    """
+    This will copy the elements of the multiprocessing namespace into the "private" memory of the current process
+
+    :param ns: multiprocessing.managers.Namespace
+    :return: MockNameSpace
+    """
+    new_ns = MockNamespace()
+    for name in MockNamespace.__dict__['__annotations__'].keys():
+        setattr(new_ns, name, getattr(ns, name))
+    return new_ns

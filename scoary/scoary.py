@@ -4,7 +4,7 @@ from .ScoaryTree import ScoaryTree
 from .load_genes import load_genes
 from .load_traits import load_traits
 from .create_final_overview import create_final_overview
-from .analyze_trait import analyze_trait
+from .analyze_trait import analyze_trait, worker
 
 logger = logging.getLogger('scoary-main')
 
@@ -92,19 +92,34 @@ def scoary(
 
     duplication_df = create_duplication_df(traits_df)
 
-    if threads > 1:
-        from .init_multiprocessing import mp, ns, counter, lock
-    else:
+    if threads == 1:
         ns, counter, lock = MockNamespace(), MockCounter(), MockLock()
+    else:
+        from .init_multiprocessing import mp, ns, counter, lock, mgr
 
-    ns = create_namespace(
-        ns, counter, lock, outdir,
-        genes_orig_df, genes_bool_df, gene_info_df,
-        numeric_df, traits_df, trait_info_df,
-        duplication_df, tree, all_labels,
-        mt_f_method, mt_f_cutoff, mt_p_method, mt_p_cutoff, n_permut,
-        all_label_to_gene, random_state, no_pairwise
-    )
+    ns = create_namespace(ns, {
+        'start_time': datetime.now(),
+        'counter': counter,
+        'lock': lock,
+        'outdir': outdir,
+        'genes_orig_df': genes_orig_df,
+        'genes_bool_df': genes_bool_df,
+        'gene_info_df': gene_info_df,
+        'numeric_df': numeric_df,
+        'traits_df': traits_df,
+        'trait_info_df': trait_info_df,
+        'duplication_df': duplication_df,
+        'tree': tree,
+        'all_labels': all_labels,
+        'mt_f_method': mt_f_method,
+        'mt_f_cutoff': mt_f_cutoff,
+        'mt_p_method': mt_p_method,
+        'mt_p_cutoff': mt_p_cutoff,
+        'n_permut': n_permut,
+        'all_label_to_gene': all_label_to_gene,
+        'random_state': random_state,
+        'no_pairwise': no_pairwise,
+    })
 
     # useful for debugging and trial and error
     if limit_to_n_traits is None:
@@ -112,42 +127,50 @@ def scoary(
     else:
         traits = traits_df.columns[:limit_to_n_traits]
 
-    if threads > 1:
-        mp.freeze_support()
-        with mp.get_context('fork').Pool(processes=threads) as pool:
-            res = pool.starmap(analyze_trait, [(trait, ns) for trait in traits])
+    if threads == 1:
+        trait_to_result = {trait: analyze_trait(trait, ns) for trait in traits}
     else:
-        res = [analyze_trait(trait, ns) for trait in traits]
+        mp.freeze_support()
+        queue = mgr.JoinableQueue()
+        trait_to_result = mgr.dict()
+        [queue.put(trait) for trait in traits]
+        procs = [mp.Process(target=worker, args=(queue, ns, trait_to_result, i)) for i in range(threads)]
+        [p.start() for p in procs]
+        [p.join() for p in procs]
 
     print_progress(
         len(ns.traits_df.columns), len(ns.traits_df.columns),
         message='COMPLETE!', start_time=ns.start_time, message_width=25,
         end='\n'
     )
-    overview_ds = create_final_overview_df(traits, res)
-    if overview_ds is None and len(overview_ds) == 0:
-        logging.warning(f'no content for overview_ds')
+    summary_df = create_summary_df(trait_to_result)
+    if summary_df is None and len(summary_df) == 0:
+        logging.warning(f'no content in summary_df')
     else:
-        create_final_overview(overview_ds, ns, isolate_info_df)
+        create_final_overview(summary_df, ns, isolate_info_df)
 
     print(CITATION)
 
 
-def create_final_overview_df(traits: [str], res: [float | str | None]) -> pd.DataFrame | None:
+def create_summary_df(trait_to_result: {str: [dict | str | None]}) -> pd.DataFrame | None:
+    """
+    Turn trait_to_result into a pandas.DataFrame
+    :param trait_to_result:
+    :return:
+    """
     # res may contain: float, str or None
     # float: smallest empirical pvalue
     # str: duplicated trait -> name of trait
     # None: no gene was significant
 
-    res = {t: r for t, r in zip(traits, res)}  # create dict
-    res = {t: res[r] if type(r) is str else r for t, r in res.items()}  # restore duplicates
-    res = {t: r for t, r in res.items() if r is not None}  # remove Nones
+    trait_to_result = {t: trait_to_result[r] if type(r) is str else r for t, r in trait_to_result.items()}  # restore duplicates
+    trait_to_result = {t: r for t, r in trait_to_result.items() if r is not None}  # remove Nones
 
-    if len(res) == 0:
+    if len(trait_to_result) == 0:
         logging.warning(f'No traits left after filtering!')
         return
 
-    overview_ds = pd.DataFrame(res).T
+    summary_df = pd.DataFrame(trait_to_result).T
     """      min_pval      min_qval  min_pval_empirical  min_qval_empirical
     Trait_1  0.574066  4.384058e-01            0.035964            0.035964
     Trait_2  0.432940  2.667931e-01            0.133866            0.133866
@@ -155,7 +178,7 @@ def create_final_overview_df(traits: [str], res: [float | str | None]) -> pd.Dat
     ...
     """
 
-    return overview_ds
+    return summary_df
 
 
 def create_duplication_df(traits_df: pd.DataFrame) -> pd.Series:

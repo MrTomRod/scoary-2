@@ -1,4 +1,3 @@
-import json
 from shutil import copy
 import numpy as np
 import pandas as pd
@@ -10,22 +9,22 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.collections import PatchCollection, QuadMesh
 from matplotlib.patches import Rectangle
-from matplotlib.colors import LogNorm, ListedColormap, Colormap, LinearSegmentedColormap
+from matplotlib.colors import LogNorm, Colormap, LinearSegmentedColormap
 
-from .utils import MockNamespace, ROOT_DIR
+from .utils import MockNamespace, ROOT_DIR, RecursionLimit
 
 
 def plot_dendrogram(linkage_matrix: np.ndarray, labels: [str], ax: Axes) -> {}:
-    # no recursion problem here. Works with up to 20'000 isolates, becomes more of a memory problem.
-    dendrogram_params = hierarchy.dendrogram(
-        linkage_matrix,
-        orientation='left',
-        labels=labels,
-        no_labels=True,
-        ax=ax
-    )
+    with RecursionLimit(max(1000, len(linkage_matrix))):  # empirically tested for up to 20'000 traits
+        dendrogram_params = hierarchy.dendrogram(
+            linkage_matrix,
+            orientation='left',
+            labels=labels,
+            no_labels=True,
+            ax=ax
+        )
 
-    ax.set_xlim([1, 0])
+    ax.set_xlim(left=1, right=0)
     ax.tick_params(
         axis='both', which='both',
         bottom=True, top=False, left=False, right=False,
@@ -89,7 +88,7 @@ def plot_qvals(qvals: pd.DataFrame, fig: Figure, ax: Axes, cmaps: {str: str | Co
 
 
 def save_colorbars(pcms: [QuadMesh], cols: [str], out: str = None):
-    fig = plt.figure(figsize=(len(pcms), 4))
+    fig = plt.figure(figsize=(len(pcms), 4), dpi=100)
     gs = fig.add_gridspec(
         nrows=1, ncols=len(pcms),
         left=0.05, right=0.99 - (0.5 / len(pcms)),
@@ -112,19 +111,19 @@ def save_colorbars(pcms: [QuadMesh], cols: [str], out: str = None):
     if out is None:
         plt.show()
     else:
-        plt.savefig(out, format='svg')  # , bbox_inches='tight')
+        plt.savefig(out, format='svg')
     plt.close()
 
 
-def create_final_overview(overview_ds: pd.DataFrame, ns: MockNamespace, isolate_info_df: pd.DataFrame = None):
+def create_final_overview(summary_df: pd.DataFrame, ns: MockNamespace, isolate_info_df: pd.DataFrame = None):
     # add isolate info
     if isolate_info_df is not None:
         isolate_info_df.to_csv(f'{ns.outdir}/isolate_info.tsv', sep='\t')
 
-    overview_ds_index = list(overview_ds.index)
-    if len(overview_ds) > 1:
+    summary_df_index = list(summary_df.index)
+    if len(summary_df) > 1:
         # prepare data, create linkage_matrix
-        pre_jaccard = ns.traits_df[overview_ds.index].astype('float').T
+        pre_jaccard = ns.traits_df[summary_df.index].astype('float').T
         pre_jaccard = ((pre_jaccard.fillna(0.5) * 2) - 1).astype('int')  # False -> -1, NAN -> 0, True -> 1
 
         # whether class=0 and class=1 are arbitrary. Calculate both possibilities, take minimum
@@ -145,12 +144,14 @@ def create_final_overview(overview_ds: pd.DataFrame, ns: MockNamespace, isolate_
 
         # create matplotlib figure
         plt.close()
-        fig = plt.figure(figsize=(7, total_height))
+        fig = plt.figure(figsize=(7, total_height), dpi=4)
+        # dpi=4 avoids this error message:
+        # ValueError: Image size of 700x165660 pixels is too large. It must be less than 2^16 in each direction.
+        # This allows for dendrograms with at least 20'000 traits
         gs = fig.add_gridspec(
             nrows=1, ncols=2, width_ratios=(7, 1),
             left=0.05, right=0.6, bottom=whitespace_rel * 2, top=1 - whitespace_rel,
-            wspace=0, hspace=0,
-            # wspace=0.05, hspace=0.05,
+            wspace=0, hspace=0
         )
 
         # get axes objects with shared y-axis
@@ -160,9 +161,9 @@ def create_final_overview(overview_ds: pd.DataFrame, ns: MockNamespace, isolate_
         # plot dendrogram
         dendrogram_params = plot_dendrogram(linkage_matrix, labels=jaccard_df.columns.values, ax=ax_dendrogram)
 
-        # reindex overview_ds according to order in dendrogram
-        overview_ds_index = dendrogram_params['ivl'][::-1]
-        overview_ds = overview_ds.reindex(overview_ds_index)
+        # reindex summary_df according to order in dendrogram
+        summary_df_index = dendrogram_params['ivl'][::-1]
+        summary_df = summary_df.reindex(summary_df_index)
 
         # plot qvals
         cmaps = {
@@ -172,8 +173,8 @@ def create_final_overview(overview_ds: pd.DataFrame, ns: MockNamespace, isolate_
                 colors=['#590d22', '#800f2f', '#a4133c', '#c9184a', '#ff4d6d',
                         '#ff758f', '#ff8fa3', '#ffb3c1', '#ffccd5', '#fff0f3'])
         }
-        cols = [col for col in cmaps.keys() if col in overview_ds.columns]
-        pcms = plot_qvals(overview_ds[cols], fig=fig, ax=ax_colorbar, cmaps=cmaps)
+        cols = [col for col in cmaps.keys() if col in summary_df.columns]
+        pcms = plot_qvals(summary_df[cols], fig=fig, ax=ax_colorbar, cmaps=cmaps)
 
         # save plot
         plt.savefig(f'{ns.outdir}/overview_plot.svg', format='svg')
@@ -191,10 +192,10 @@ def create_final_overview(overview_ds: pd.DataFrame, ns: MockNamespace, isolate_
     copy(src=f'{ROOT_DIR}/templates/favicon.ico', dst=f'{ns.outdir}/favicon.ico')
 
     if ns.trait_info_df is not None:
-        overview_ds = overview_ds \
+        summary_df = summary_df \
             .merge(ns.trait_info_df, left_index=True, right_index=True, how='left', copy=False) \
-            .reindex(overview_ds_index)  # merging destroys index order
+            .reindex(summary_df_index)  # merging destroys index order
 
-    # save overview_ds, ensure order matches plot
-    overview_ds.index.name = 'Trait'
-    overview_ds.to_csv(f'{ns.outdir}/overview.tsv', sep='\t')
+    # save summary_df, ensure order matches plot
+    summary_df.index.name = 'Trait'
+    summary_df.to_csv(f'{ns.outdir}/summary.tsv', sep='\t')

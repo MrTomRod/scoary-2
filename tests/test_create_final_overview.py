@@ -11,6 +11,7 @@ class Test(TestCase):
         self.temp_dir = get_tempdir_path()
         self.fake_ns = MockNamespace()
         self.fake_ns.outdir = self.temp_dir
+        self.fake_ns.trait_info_df = None
 
         os.makedirs(self.temp_dir, exist_ok=True)
         call(f'rm -rf {self.temp_dir}/*', shell=True)
@@ -20,7 +21,7 @@ class Test(TestCase):
         print(f'To clean up, run "rm -r {self.temp_dir}"')
 
     def test_simple(self):
-        overview_ds = pd.DataFrame(**{'index': ['Compound_242', 'Compound_267', 'Compound_286'],
+        summary_df = pd.DataFrame(**{'index': ['Compound_242', 'Compound_267', 'Compound_286'],
                                       'columns': ['min_pval', 'min_qval', 'min_pval_empirical', 'min_qval_empirical'],
                                       'data': [[0.574065934065931, 0.43840579710145217, 0.03596403596403597,
                                                 0.03596403596403597],
@@ -37,14 +38,28 @@ class Test(TestCase):
                      [False, pd.NA, True], [pd.NA, pd.NA, True]]},
                                  dtype='boolean')
         self.fake_ns.traits_df = traits_df  # load_binary(get_path('new_ds', 'traits-lc-binary'), '\t')
-        create_final_overview(overview_ds=overview_ds, ns=self.fake_ns)
+        create_final_overview(summary_df=summary_df, ns=self.fake_ns)
 
     def test_larger(self):
         self.fake_ns.traits_df = load_binary(get_path('new_ds', 'traits-lc-binary'), '\t')
-        overview_ds = pd.DataFrame(index=self.fake_ns.traits_df.columns)
+        summary_df = pd.DataFrame(index=self.fake_ns.traits_df.columns)
         for col in ['min_pval', 'min_qval', 'min_pval_empirical', 'min_qval_empirical']:
-            overview_ds[col] = np.random.rand(1, len(self.fake_ns.traits_df.columns))[0]
-        create_final_overview(overview_ds=overview_ds, ns=self.fake_ns)
+            summary_df[col] = np.random.rand(1, len(self.fake_ns.traits_df.columns))[0]
+        create_final_overview(summary_df=summary_df, ns=self.fake_ns)
+
+    def test_largest(self):
+        # This function was used to determine the desired recursion limit in plot_dendrogram
+        n_traits, n_isolates = 100, 44  # 10000, 44
+        self.fake_ns.traits_df = pd.DataFrame(
+            np.random.rand(n_isolates, n_traits) > 0.5,
+            index=[f'I{i}' for i in range(n_isolates)],
+            columns=[f'T{i}' for i in range(n_traits)],
+        )
+        summary_df = pd.DataFrame(index=self.fake_ns.traits_df.columns)
+        for col in ['min_pval', 'min_qval', 'min_pval_empirical', 'min_qval_empirical']:
+            summary_df[col] = np.random.rand(1, len(self.fake_ns.traits_df.columns))[0]
+
+        create_final_overview(summary_df=summary_df, ns=self.fake_ns)
 
     def test_understand_jaccard(self):
         from scipy.spatial.distance import cdist
