@@ -57,6 +57,10 @@ docker run  \
     /bin/bash
 ```
 
+# Overview of the algorithm
+
+![algorithm flowchart](media/ScoaryWorkflow.drawio.svg)
+
 # Todo:
 
 - [X] Binarize traits during multiprocessing
