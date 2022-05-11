@@ -3,13 +3,13 @@ from subprocess import call
 from init_tests import *
 from scoary.create_final_overview import create_final_overview
 from scoary.load_traits import load_binary
-from scoary.utils import pd, MockNamespace
+from scoary.utils import pd, AnalyzeTraitNamespace
 
 
 class Test(TestCase):
     def setUp(self) -> None:
         self.temp_dir = get_tempdir_path()
-        self.fake_ns = MockNamespace()
+        self.fake_ns = AnalyzeTraitNamespace()
         self.fake_ns.outdir = self.temp_dir
         self.fake_ns.trait_info_df = None
 

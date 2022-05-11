@@ -56,7 +56,7 @@ def create_permuted_df(labels: [str], n_positive: int, n_permut: int, random_sta
     return pd.DataFrame(arr, columns=labels)
 
 
-def permute_trait_picking(
+def permute_picking(
         tree: ScoaryTree,
         label_to_trait: {str: bool},
         result_df: pd.DataFrame,

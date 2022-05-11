@@ -42,11 +42,11 @@ class TestScoary(TestCase):
             gene_data_type='gene-list:2',
             traits=get_path('new_ds', 'traits-lc-binary'),
             trait_data_type='binary:\t',
-            n_permut=1000,
+            n_permut=200,
             # ignore='Starter-only-5A,FAMIX,Starter-only-10,Starter-only-7,mixture',
             restrict_to='FAM1414-i1-1.1,FAM14177-p1-1.1,FAM14184-i1-1.1,FAM14193-i1-1.1,FAM14197-i1-1.1,FAM14217-p1-1.1,FAM14221-p1-1.1,FAM14222-p1-1.1,FAM15061-i1-1.1,FAM15078-i1-1.1,FAM15113-i1-1.1,FAM15170-i1-1.1,FAM15190-i1-1.1,FAM15192-i1-1.1,FAM15300-i1-1.1,FAM15333-i1-1.1,FAM15346-i1-1.1,FAM15347-i1-1.1,FAM15381-i1-1.1,FAM15407-i1-1.1,FAM19015-i1-1.1,FAM19016-i1-1.1,FAM19020-i1-1.1,FAM19022-i1-1.1,FAM19023-i1-1.1,FAM19024-p1-1.1,FAM19025-p1-1.1,FAM19030-i2-1.1,FAM19031-i2-1.1,FAM19034-i1-1.1,FAM22019-i1-1.1,FAM22020-i1-1.1,FAM22021-p1-1.1,FAM23848-i1-1.1,FAM23852-i1-1.1,FAM23853-i1-1.1,FAM23855-i1-1.1,FAM23864-i1-1.1,FAM23867-i1-1.1,FAM23868-i1-1.1,FAM23869-i1-1.1,FAM23870-i1-1.1,FAM23877-p1-1.1,FAM24252-i1-1.1',
             random_state=42,
-            threads=1,
+            threads=7,
             outdir=self.tempdir,
             limit_to_n_traits=10,
         )
@@ -60,13 +60,41 @@ class TestScoary(TestCase):
             trait_data_type=f'gaussian:skip:\t:tied',  # {'tied', 'full', 'diag', 'spherical'}
             trait_info=get_path('new_ds', 'traits-lc-meta'),
             isolate_info=get_path('new_ds', 'isolate-meta'),
-            n_permut=1000,
+            n_permut=200,
             # ignore='Starter-only-5A,FAMIX,Starter-only-10,Starter-only-7,mixture',
             restrict_to='FAM1414-i1-1.1,FAM14177-p1-1.1,FAM14184-i1-1.1,FAM14193-i1-1.1,FAM14197-i1-1.1,FAM14217-p1-1.1,FAM14221-p1-1.1,FAM14222-p1-1.1,FAM15061-i1-1.1,FAM15078-i1-1.1,FAM15113-i1-1.1,FAM15170-i1-1.1,FAM15190-i1-1.1,FAM15192-i1-1.1,FAM15300-i1-1.1,FAM15333-i1-1.1,FAM15346-i1-1.1,FAM15347-i1-1.1,FAM15381-i1-1.1,FAM15407-i1-1.1,FAM19015-i1-1.1,FAM19016-i1-1.1,FAM19020-i1-1.1,FAM19022-i1-1.1,FAM19023-i1-1.1,FAM19024-p1-1.1,FAM19025-p1-1.1,FAM19030-i2-1.1,FAM19031-i2-1.1,FAM19034-i1-1.1,FAM22019-i1-1.1,FAM22020-i1-1.1,FAM22021-p1-1.1,FAM23848-i1-1.1,FAM23852-i1-1.1,FAM23853-i1-1.1,FAM23855-i1-1.1,FAM23864-i1-1.1,FAM23867-i1-1.1,FAM23868-i1-1.1,FAM23869-i1-1.1,FAM23870-i1-1.1,FAM23877-p1-1.1,FAM24252-i1-1.1',
             random_state=42,
             threads=7,
             outdir=self.tempdir,
             # no_pairwise=True
+        )
+
+    def test_scoary_real(self):
+        scoary(
+            genes=get_path('full_ds', 'genes'),
+            gene_info=get_path('full_ds', 'gene-info'),
+            gene_data_type='gene-list:\t',
+            traits=get_path('full_ds', 'traits'),
+            trait_data_type=f'gaussian:skip:\t:tied',  # {'tied', 'full', 'diag', 'spherical'}
+            trait_info=get_path('full_ds', 'trait-info'),
+            isolate_info=get_path('full_ds', 'isolate-info'),
+            n_permut=300,
+            random_state=42,
+            threads=7,
+            restrict_to='FAM14177-p1-1.1,FAM14184-i1-1.1,FAM14193-i1-1.1,FAM14197-i1-1.1,FAM14217-p1-1.1,FAM14221-p1-1.1,FAM14222-p1-1.1,FAM1414-i1-1.1,FAM15061-i1-1.1,FAM15078-i1-1.1,FAM15113-i1-1.1,FAM15170-i1-1.1,FAM15190-i1-1.1,FAM15192-i1-1.1,FAM15300-i1-1.1,FAM15333-i1-1.1,FAM15346-i1-1.1,FAM15347-i1-1.1,FAM15381-i1-1.1,FAM15407-i1-1.1,FAM19015-i1-1.1,FAM19016-i1-1.1,FAM19020-i1-1.1,FAM19022-i1-1.1,FAM19023-i1-1.1,FAM19024-p1-1.1,FAM19025-p1-1.1,FAM19030-i2-1.1,FAM19031-i2-1.1,FAM19034-i1-1.1,FAM22019-i1-1.1,FAM22020-i1-1.1,FAM22021-p1-1.1,FAM23848-i1-1.1,FAM23852-i1-1.1,FAM23853-i1-1.1,FAM23855-i1-1.1,FAM23864-i1-1.1,FAM23867-i1-1.1,FAM23868-i1-1.1,FAM23869-i1-1.1,FAM23870-i1-1.1,FAM23877-p1-1.1,FAM24252-i1-1.1',
+            outdir=self.tempdir,
+        )
+
+    def test_scoary_marco(self):
+        scoary(
+            genes='../data/marco/Orthogroups.tsv',
+            gene_data_type='gene-list:\t',
+            traits='../data/marco/traits.tsv',
+            trait_data_type='binary: ',  # {'tied', 'full', 'diag', 'spherical'}
+            n_permut=1000,
+            random_state=42,
+            threads=1,
+            outdir=self.tempdir,
         )
 
     def test_same_hemming_result(self):

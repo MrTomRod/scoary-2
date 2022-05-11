@@ -11,7 +11,7 @@ from matplotlib.collections import PatchCollection, QuadMesh
 from matplotlib.patches import Rectangle
 from matplotlib.colors import LogNorm, Colormap, LinearSegmentedColormap
 
-from .utils import MockNamespace, ROOT_DIR, RecursionLimit
+from .utils import AnalyzeTraitNamespace, ROOT_DIR, RecursionLimit
 
 
 def plot_dendrogram(linkage_matrix: np.ndarray, labels: [str], ax: Axes) -> {}:
@@ -115,7 +115,7 @@ def save_colorbars(pcms: [QuadMesh], cols: [str], out: str = None):
     plt.close()
 
 
-def create_final_overview(summary_df: pd.DataFrame, ns: MockNamespace, isolate_info_df: pd.DataFrame = None):
+def create_final_overview(summary_df: pd.DataFrame, ns: AnalyzeTraitNamespace, isolate_info_df: pd.DataFrame = None):
     # add isolate info
     if isolate_info_df is not None:
         isolate_info_df.to_csv(f'{ns.outdir}/isolate_info.tsv', sep='\t')
@@ -184,11 +184,9 @@ def create_final_overview(summary_df: pd.DataFrame, ns: MockNamespace, isolate_i
         save_colorbars(pcms, [c.removeprefix('min_') for c in cols], out=f'{ns.outdir}/overview_colorbar.svg')
 
     # copy files
-    files = [f'{file_name}.{file_type}' for file_type in ('html', 'css', 'js') for file_name in ('overview', 'trait')]
-    files.append('config.json')
-    import os
-    for file in files:
-        os.symlink(src=f'{ROOT_DIR}/templates/{file}', dst=f'{ns.outdir}/{file}')
+    files = ['overview.html', 'trait.html', 'overview.css', 'trait.css', 'overview.js', 'trait.js']
+    for file in ['config.json', 'overview.html', 'trait.html', 'overview.css', 'trait.css', 'overview.js', 'trait.js']:
+        copy(src=f'{ROOT_DIR}/templates/{file}', dst=f'{ns.outdir}/{file}')
     copy(src=f'{ROOT_DIR}/templates/favicon.ico', dst=f'{ns.outdir}/favicon.ico')
 
     if ns.trait_info_df is not None:

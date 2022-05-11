@@ -9,15 +9,16 @@ from queue import Empty
 
 from .ScoaryTree import ScoaryTree
 from .picking import pick
-from .permutations import permute_trait_picking
+from .permutations import permute_picking
 from .progressbar import print_progress
-from .utils import MockNamespace, get_label_to_trait, fisher_id, grasp_namespace
+from .utils import AnalyzeTraitNamespace, get_label_to_trait, fisher_id, grasp_namespace
 
 logger = logging.getLogger('scoary-trait')
 
 
-def worker(q, ns: MockNamespace, result_container: {str: [float | str | None]}, proc_id):
-    new_ns = grasp_namespace(ns)
+def worker(q, ns: AnalyzeTraitNamespace, result_container: {str: float | str | None}, proc_id):
+    new_ns = grasp_namespace(AnalyzeTraitNamespace, ns)
+    del ns
 
     while True:
         try:
@@ -29,7 +30,7 @@ def worker(q, ns: MockNamespace, result_container: {str: [float | str | None]}, 
         q.task_done()
 
 
-def analyze_trait(trait: str, ns: MockNamespace, proc_id: int = None) -> dict | str | None:
+def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) -> dict | str | None:
     with ns.lock:
         ns.counter.value += 1
         message = trait if proc_id is None else f'CPU{proc_id} | {trait}'
@@ -82,7 +83,7 @@ def analyze_trait(trait: str, ns: MockNamespace, proc_id: int = None) -> dict | 
         )
 
         if ns.n_permut:
-            result_df['pval_empirical'] = permute_trait_picking(
+            result_df['pval_empirical'] = permute_picking(
                 result_df=result_df,
                 all_label_to_gene=ns.all_label_to_gene,
                 tree=pruned_tree,
@@ -105,7 +106,7 @@ def analyze_trait(trait: str, ns: MockNamespace, proc_id: int = None) -> dict | 
     return result_df.attrs
 
 
-def _save_trait(trait: str, ns: MockNamespace):
+def _save_trait(trait: str, ns: AnalyzeTraitNamespace):
     trait_df = pd.DataFrame(index=ns.traits_df.index)
     trait_df['class'] = ns.traits_df[trait]
     if ns.numeric_df is not None:
@@ -114,7 +115,7 @@ def _save_trait(trait: str, ns: MockNamespace):
     trait_df.to_csv(f'{ns.outdir}/traits/{trait}/values.tsv', sep='\t')
 
 
-def save_result_df(trait: str, ns: MockNamespace, result_df: pd.DataFrame):
+def save_result_df(trait: str, ns: AnalyzeTraitNamespace, result_df: pd.DataFrame):
     os.makedirs(f'{ns.outdir}/traits/{trait}')
 
     # add annotations
@@ -161,7 +162,7 @@ def save_result_df(trait: str, ns: MockNamespace, result_df: pd.DataFrame):
     _save_trait(trait, ns)
 
 
-def save_duplicated_result(trait: str, ns: MockNamespace):
+def save_duplicated_result(trait: str, ns: AnalyzeTraitNamespace):
     os.makedirs(f'{ns.outdir}/traits/{trait}')
 
     # use data from previous duplicate

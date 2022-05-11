@@ -23,13 +23,20 @@ class KeyValueStore:
         return f'KeyValueStore {self.table_name} ({self._db_path})'
 
     def get_cur(self):
-        con = sqlite3.connect(self._db_path)
-        cur = con.cursor()
+        try:
+            con = sqlite3.connect(self._db_path)
+            cur = con.cursor()
+        except Exception as e:
+            logging.warning(f'Failed to connect to db: {self._db_path}')
+            raise e
         return con, cur
 
     def __del__(self):
-        self.cur.close()
-        self.con.close()
+        try:
+            self.cur.close()
+            self.con.close()
+        except Exception:
+            pass
 
     def create_db(self):
         raise NotImplementedError(f'Users of the abstract class {self.__class__} must implement this function!')

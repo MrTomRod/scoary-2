@@ -27,7 +27,7 @@ def scoary(
         trait_data_type: str = 'binary:,',
         gene_data_type: str = 'gene-count',
         random_state: int = None,
-        limit_to_n_traits: int = None,
+        limit_traits: (int, int) = None,
 ):
     outdir = setup_outdir(outdir)
     setup_logging(f'{outdir}/scoary-2.log')
@@ -43,7 +43,10 @@ def scoary(
         trait_data_type=trait_data_type,
         restrict_to=restrict_to,
         ignore=ignore,
-        random_state=random_state
+        threads=threads,
+        random_state=random_state,
+        outdir=outdir,
+        limit_traits=limit_traits
     )
 
     # dynamically set recursion limit, should work for ~ 13'000 isolates
@@ -93,11 +96,12 @@ def scoary(
     duplication_df = create_duplication_df(traits_df)
 
     if threads == 1:
-        ns, counter, lock = MockNamespace(), MockCounter(), MockLock()
+        ns, counter, lock = AnalyzeTraitNamespace(), MockCounter(), MockLock()
     else:
-        from .init_multiprocessing import mp, ns, counter, lock, mgr
+        from .init_multiprocessing import init, mp
+        mgr, ns, counter, lock = init()
 
-    ns = create_namespace(ns, {
+    ns = AnalyzeTraitNamespace.create_namespace(ns, {
         'start_time': datetime.now(),
         'counter': counter,
         'lock': lock,
@@ -121,11 +125,7 @@ def scoary(
         'no_pairwise': no_pairwise,
     })
 
-    # useful for debugging and trial and error
-    if limit_to_n_traits is None:
-        traits = traits_df.columns.to_list()
-    else:
-        traits = traits_df.columns[:limit_to_n_traits]
+    traits = traits_df.columns.to_list()
 
     if threads == 1:
         trait_to_result = {trait: analyze_trait(trait, ns) for trait in traits}
@@ -163,7 +163,8 @@ def create_summary_df(trait_to_result: {str: [dict | str | None]}) -> pd.DataFra
     # str: duplicated trait -> name of trait
     # None: no gene was significant
 
-    trait_to_result = {t: trait_to_result[r] if type(r) is str else r for t, r in trait_to_result.items()}  # restore duplicates
+    trait_to_result = {t: trait_to_result[r] if type(r) is str else r for t, r in
+                       trait_to_result.items()}  # restore duplicates
     trait_to_result = {t: r for t, r in trait_to_result.items() if r is not None}  # remove Nones
 
     if len(trait_to_result) == 0:
@@ -199,11 +200,11 @@ def create_duplication_df(traits_df: pd.DataFrame) -> pd.Series:
 
 CITATION = '''
   ██████  ▄████▄   ▒█████   ▄▄▄       ██▀███ ▓██   ██▓   ░▒█████▒░ 
-▒██    ▒ ▒██▀ ▀█  ▒██▒  ██▒▒████▄    ▓██ ▒ ██▒▒██  ██▒   ▒█▒   ██▒░
-░ ▓██▄   ▒▓█    ▄ ▒██░  ██▒▒██  ▀█▄  ▓██ ░▄█ ▒ ▒██ ██░       ░█▀   
-  ▒   ██▒▒▓▓▄ ▄██▒▒██   ██░░██▄▄▄▄██ ▒██▀▀█▄   ░ ▐██▓░      ▄█     
-▒██████▒▒▒ ▓███▀ ░░ ████▓▒░ ▓█   ▓██▒░██▓ ▒██▒ ░ ██▒▓░   ░███████▒ 
-▒ ▒▓▒ ▒ ░░ ░▒ ▒  ░░ ▒░▒░▒░  ▒▒   ▓▒█░░ ▒▓ ░▒▓░  ██▒▒▒    ░▒▒  ░▒░  
+▒██    ▒ ▒██▀ ▀█  ▒██▒  ██ ▒████▄    ▓██   ██ ▒██  ██▒   ▒█▒   ██▒░
+░ ▓██▄   ▒▓█    ▄ ▒██░  ██ ▒██  ▀█▄  ▓██ ░▄█   ▒██ ██░       ░█▀   
+  ▒   ██ ▒▓▓▄ ▄██▒▒██   ██ ░██▄▄▄▄██ ▒██▀▀█▄   ░ ▐██▓░      ▄█     
+▒██████▒   ▓███▀ ░░ ████▓▒░ ▓█   ▓██▒░██▓ ▒██▒   ██▒▓░   ░███████▒ 
+▒ ▒▓▒ ▒ ░  ░▒ ▒  ░░ ▒░▒░▒░  ▒▒   ▓▒█░░ ▒▓ ░▒▓░  ██▒▒▒    ░▒▒  ░▒░  
 ░ ░▒  ░ ░  ░  ▒     ░ ▒ ▒░   ▒   ▒▒ ░  ░▒ ░ ▒░▓██ ░▒░     ░░   ▒░  
 ░  ░  ░  ░        ░ ░ ░ ▒    ░   ▒     ░░   ░ ▒ ▒ ░░           ░   
       ░  ░ ░          ░ ░        ░  ░   ░     ░ ░                  
@@ -217,7 +218,12 @@ title title title title title title.
 Journal. 2022;00:000.
 '''.strip('\n')
 
-if __name__ == '__main__':
+
+def main():
     import fire
 
     fire.Fire(scoary)
+
+
+if __name__ == '__main__':
+    main()

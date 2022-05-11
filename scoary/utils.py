@@ -4,6 +4,7 @@ import logging
 import warnings
 from typing import Type, Any
 from datetime import datetime
+import numpy as np
 import pandas as pd
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -222,7 +223,32 @@ class MockLock:
         return False
 
 
-class MockNamespace:
+class AbstractNamespace:
+    @classmethod
+    def create_namespace(cls, ns, properties: {str: Any}):
+        for name in cls.__dict__['__annotations__'].keys():
+            setattr(ns, name, properties[name])
+        return ns
+
+
+def grasp_namespace(cls, ns):
+    """
+    This will copy the elements of the multiprocessing namespace into the "private" memory of the current process
+
+    :param ns: multiprocessing.managers.Namespace
+    :return: MockNameSpace
+    """
+    new_ns = cls()
+    for name in cls.__dict__['__annotations__'].keys():
+        value = getattr(ns, name)
+        if type(value) in (np.ndarray, pd.DataFrame):
+            setattr(new_ns, name, value.__deepcopy__())
+        else:
+            setattr(new_ns, name, value)
+    return new_ns
+
+
+class AnalyzeTraitNamespace(AbstractNamespace):
     counter: MockCounter
     lock: MockLock
     outdir: str
@@ -246,20 +272,14 @@ class MockNamespace:
     no_pairwise: bool
 
 
-def create_namespace(ns, properties: {str: Any}):
-    for name in MockNamespace.__dict__['__annotations__'].keys():
-        setattr(ns, name, properties[name])
-    return ns
-
-
-def grasp_namespace(ns) -> MockNamespace:
-    """
-    This will copy the elements of the multiprocessing namespace into the "private" memory of the current process
-
-    :param ns: multiprocessing.managers.Namespace
-    :return: MockNameSpace
-    """
-    new_ns = MockNamespace()
-    for name in MockNamespace.__dict__['__annotations__'].keys():
-        setattr(new_ns, name, getattr(ns, name))
-    return new_ns
+class BinarizeTraitNamespace(AbstractNamespace):
+    counter: MockCounter
+    lock: MockLock
+    start_time: datetime
+    numeric_df: pd.DataFrame
+    random_state: int
+    method: str
+    alternative: str
+    covariance_type: str
+    cutoff: float
+    random_state: int
