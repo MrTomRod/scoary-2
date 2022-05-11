@@ -12,6 +12,7 @@ logger = logging.getLogger('scoary-main')
 def scoary(
         genes: str,
         traits: str,
+        outdir: str,
         multiple_testing_fisher: str = 'bonferroni:0.999',
         multiple_testing_picking: str = 'bonferroni:0.999',
         gene_info: str = None,
@@ -19,7 +20,6 @@ def scoary(
         isolate_info: str = None,
         newicktree: str = None,
         no_pairwise: bool = False,  # ?
-        outdir: str = None,
         n_permut: int = 0,
         restrict_to: str = None,
         ignore: str = None,
@@ -29,7 +29,9 @@ def scoary(
         random_state: int = None,
         limit_traits: (int, int) = None,
 ):
-    outdir = setup_outdir(outdir)
+    trait_data_type = decode_unicode(trait_data_type)
+    gene_data_type = decode_unicode(gene_data_type)
+    outdir = setup_outdir(outdir, input=locals())
     setup_logging(f'{outdir}/scoary-2.log')
 
     mt_f_method, mt_f_cutoff = parse_correction(multiple_testing_fisher)

@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import logging
 import warnings
 from typing import Type, Any
@@ -13,10 +14,16 @@ ALLOWED_CORRECTIONS = {'bonferroni', 'sidak', 'holm-sidak', 'holm', 'simes-hochb
                        'fdr_tsbh', 'fdr_tsbky'}
 
 
-def setup_outdir(outdir: str) -> str:
+def decode_unicode(string: str) -> str:
+    return string.encode('utf-8').decode('unicode-escape')
+
+
+def setup_outdir(outdir: str, input: dict) -> str:
     outdir = outdir.rstrip('/')
     assert not os.path.exists(outdir), f'ERROR: {outdir=} already exists!'
     os.makedirs(f'{outdir}/traits')
+    with open(f'{outdir}/input.json', 'w') as f:
+        json.dump(input, f, indent=4)
     return outdir
 
 
