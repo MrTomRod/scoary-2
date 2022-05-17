@@ -11,12 +11,17 @@ from .ScoaryTree import ScoaryTree
 from .picking import pick
 from .permutations import permute_picking
 from .progressbar import print_progress
-from .utils import AnalyzeTraitNamespace, get_label_to_trait, fisher_id, grasp_namespace
+from .utils import setup_logging, AnalyzeTraitNamespace, get_label_to_trait, fisher_id, grasp_namespace
 
-logger = logging.getLogger('scoary-trait')
+logger = logging.getLogger('scoary.analyze_trait')
 
 
 def worker(q, ns: AnalyzeTraitNamespace, result_container: {str: float | str | None}, proc_id):
+    logger = logging.getLogger('scoary')
+    logger.propagate = False
+    setup_logging(logger, f'{ns.outdir}/scoary-2_proc{proc_id}.log', print_info=False)
+    logger.info(f'Setting up trait analysis worker {proc_id}')
+
     new_ns = grasp_namespace(AnalyzeTraitNamespace, ns)
     del ns
 
@@ -31,19 +36,19 @@ def worker(q, ns: AnalyzeTraitNamespace, result_container: {str: float | str | N
 
 
 def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) -> dict | str | None:
+    logger.debug(f'Analyzing {trait=}')
     with ns.lock:
         ns.counter.value += 1
         message = trait if proc_id is None else f'CPU{proc_id} | {trait}'
         print_progress(
             ns.counter.value, len(ns.traits_df.columns),
-            message=message, start_time=ns.start_time, message_width=25,
-            end='\n'
+            message=message, start_time=ns.start_time, message_width=25
         )
 
-    if trait in ns.duplication_df:
-        print(f'Duplicated trait: {trait} -> {ns.duplication_df[trait]}')
-        save_duplicated_result(trait, ns)
-        return ns.duplication_df[trait]
+        if trait in ns.duplication_df:
+            logger.debug(f'Duplicated trait: {trait} -> {ns.duplication_df[trait]}')
+            save_duplicated_result(trait, ns)
+            return ns.duplication_df[trait]
 
     label_to_trait = get_label_to_trait(ns.traits_df[trait])
 
@@ -74,7 +79,7 @@ def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) ->
     result_df.attrs['min_pval'] = result_df['pval'].min()
     result_df.attrs['min_qval'] = result_df['qval'].min()
 
-    if not ns.no_pairwise:
+    if ns.pairwise:
         result_df = pair_picking(
             result_df,
             significant_genes_df=ns.genes_bool_df.loc[result_df.Gene],
@@ -84,6 +89,7 @@ def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) ->
 
         if ns.n_permut:
             result_df['pval_empirical'] = permute_picking(
+                trait=trait,
                 result_df=result_df,
                 all_label_to_gene=ns.all_label_to_gene,
                 tree=pruned_tree,

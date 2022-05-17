@@ -2,7 +2,7 @@ import logging
 from collections import defaultdict
 import pandas as pd
 
-logger = logging.getLogger('scoary-load_genes')
+logger = logging.getLogger('scoary.load_genes')
 
 
 def filter_df(df: pd.DataFrame, restrict_to: [str] = None, ignore: [str] = None) -> pd.DataFrame:
@@ -21,8 +21,8 @@ def filter_df(df: pd.DataFrame, restrict_to: [str] = None, ignore: [str] = None)
                                        f'\n{restrict_to=}' \
                                        f'\n{have_cols=}'
         cols_dropped = restrict_to.difference(set(df.columns))
-        logger.info(f'Cols kept: {list(restrict_to)}')
-        logger.info(f'Cols dropped: {list(cols_dropped)}')
+        logger.debug(f'Cols kept: {list(restrict_to)}')
+        logger.debug(f'Cols dropped: {list(cols_dropped)}')
         df = df[[c for c in df.columns if c in restrict_to]]
 
     return df

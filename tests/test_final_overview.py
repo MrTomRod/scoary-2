@@ -1,7 +1,7 @@
 import os
 from subprocess import call
 from init_tests import *
-from scoary.create_final_overview import create_final_overview
+from scoary.final_overview import create_final_overview
 from scoary.load_traits import load_binary
 from scoary.utils import pd, AnalyzeTraitNamespace
 

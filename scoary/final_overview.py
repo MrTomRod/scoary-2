@@ -1,3 +1,4 @@
+import logging
 from shutil import copy
 import numpy as np
 import pandas as pd
@@ -12,6 +13,8 @@ from matplotlib.patches import Rectangle
 from matplotlib.colors import LogNorm, Colormap, LinearSegmentedColormap
 
 from .utils import AnalyzeTraitNamespace, ROOT_DIR, RecursionLimit
+
+logger = logging.getLogger('scoary.final_overview')
 
 
 def plot_dendrogram(linkage_matrix: np.ndarray, labels: [str], ax: Axes) -> {}:
@@ -59,6 +62,9 @@ def plot_qvals(qvals: pd.DataFrame, fig: Figure, ax: Axes, cmaps: {str: str | Co
 
     pcms = []
     for i, (col, cmap) in enumerate(cmaps.items()):
+        if col not in qvals.columns:
+            continue
+
         # determine x intervals: [0, 1] / [1, 2] / ...
         x = np.array([i, i + 1])
 
@@ -116,12 +122,20 @@ def save_colorbars(pcms: [QuadMesh], cols: [str], out: str = None):
 
 
 def create_final_overview(summary_df: pd.DataFrame, ns: AnalyzeTraitNamespace, isolate_info_df: pd.DataFrame = None):
-    # add isolate info
+    logger.info('Adding isolate info...')
     if isolate_info_df is not None:
         isolate_info_df.to_csv(f'{ns.outdir}/isolate_info.tsv', sep='\t')
 
+    logger.info('Copying files...')
+    # copy files
+    files = ['overview.html', 'trait.html', 'overview.css', 'trait.css', 'overview.js', 'trait.js']
+    for file in ['config.json', 'overview.html', 'trait.html', 'overview.css', 'trait.css', 'overview.js', 'trait.js']:
+        copy(src=f'{ROOT_DIR}/templates/{file}', dst=f'{ns.outdir}/{file}')
+    copy(src=f'{ROOT_DIR}/templates/favicon.ico', dst=f'{ns.outdir}/favicon.ico')
+
     summary_df_index = list(summary_df.index)
     if len(summary_df) > 1:
+        logger.info('Calculating dendrogram linkage matrix...')
         # prepare data, create linkage_matrix
         pre_jaccard = ns.traits_df[summary_df.index].astype('float').T
         pre_jaccard = ((pre_jaccard.fillna(0.5) * 2) - 1).astype('int')  # False -> -1, NAN -> 0, True -> 1
@@ -158,6 +172,7 @@ def create_final_overview(summary_df: pd.DataFrame, ns: AnalyzeTraitNamespace, i
         ax_dendrogram = fig.add_subplot(gs[0, 0])
         ax_colorbar = fig.add_subplot(gs[0, 1], sharey=ax_dendrogram)
 
+        logger.info('Plotting dendrogram...')
         # plot dendrogram
         dendrogram_params = plot_dendrogram(linkage_matrix, labels=jaccard_df.columns.values, ax=ax_dendrogram)
 
@@ -165,6 +180,7 @@ def create_final_overview(summary_df: pd.DataFrame, ns: AnalyzeTraitNamespace, i
         summary_df_index = dendrogram_params['ivl'][::-1]
         summary_df = summary_df.reindex(summary_df_index)
 
+        logger.info('Plotting colorbars...')
         # plot qvals
         cmaps = {
             'min_qval': 'Spectral',
@@ -183,13 +199,8 @@ def create_final_overview(summary_df: pd.DataFrame, ns: AnalyzeTraitNamespace, i
         # create color bar, save
         save_colorbars(pcms, [c.removeprefix('min_') for c in cols], out=f'{ns.outdir}/overview_colorbar.svg')
 
-    # copy files
-    files = ['overview.html', 'trait.html', 'overview.css', 'trait.css', 'overview.js', 'trait.js']
-    for file in ['config.json', 'overview.html', 'trait.html', 'overview.css', 'trait.css', 'overview.js', 'trait.js']:
-        copy(src=f'{ROOT_DIR}/templates/{file}', dst=f'{ns.outdir}/{file}')
-    copy(src=f'{ROOT_DIR}/templates/favicon.ico', dst=f'{ns.outdir}/favicon.ico')
-
     if ns.trait_info_df is not None:
+        logger.info('Adding trait info...')
         summary_df = summary_df \
             .merge(ns.trait_info_df, left_index=True, right_index=True, how='left', copy=False) \
             .reindex(summary_df_index)  # merging destroys index order

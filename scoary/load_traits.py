@@ -12,10 +12,11 @@ from sklearn.exceptions import ConvergenceWarning
 from sklearn.mixture import GaussianMixture
 
 from scoary.progressbar import print_progress
-from .utils import is_float, ignore_warnings, BinarizeTraitNamespace, MockLock, MockCounter, grasp_namespace
+from .utils import setup_logging, is_float, ignore_warnings, BinarizeTraitNamespace, MockLock, MockCounter, \
+    grasp_namespace
 from queue import Empty
 
-logger = logging.getLogger('scoary-load_traits')
+logger = logging.getLogger('scoary.load_traits')
 STR_NA_VALUES.update(['-', '.'])  # compatibility with Scoary 1
 
 
@@ -60,7 +61,7 @@ def load_binary(traits: str, delimiter: str, restrict_to: str = None, ignore: st
 
     n_nan = int(traits_df.isna().sum().sum())
     if n_nan:
-        logger.warning(f'Found {n_nan} NaN in {traits=}')
+        logger.debug(f'Found {n_nan} NaN in {traits=}')
 
     traits_df.attrs['binarization_method'] = 'none'
     traits_df.attrs['binarization_info'] = 'none'
@@ -87,7 +88,7 @@ def load_numeric(traits: str, delimiter: str, restrict_to: str = None, ignore: s
 
     n_nan = int(numeric_df.isna().sum().sum())
     if n_nan:
-        logger.warning(f'Found {n_nan} NaN in {traits=}')
+        logger.debug(f'Found {n_nan} NaN in {traits=}')
 
     numeric_df = filter_df(numeric_df, restrict_to, ignore)
 
@@ -165,7 +166,7 @@ def apply_gm(gm: GaussianMixture, data: pd.Series, certainty_cutoff: float, extr
 def parse_params(orig_params: str):
     error_message = f"""
 {orig_params=} is poorly formatted.
-Must be 'kmeans', 'gaussian' or '<method>:<?cutoff>:<?covariance_type>:<?alternative>'.
+Must be 'kmeans', 'gaussian' or '<method>:<?cutoff>:<?covariance_type>:<?alternative>:<?delimiter>'.
   Possible values for method:          {{'gaussian', 'kmeans'}}
   Possible values for delimiter:       any single character  (default: ',')
   Possible values for cutoff:          .5 <= cutoff < 1  (default: 0.85)
@@ -221,13 +222,13 @@ def print_status(ns, trait, proc_id):
         message = trait if proc_id is None else f'CPU{proc_id} | {trait}'
         print_progress(
             ns.counter.value, len(ns.numeric_df.columns),
-            message=message, start_time=ns.start_time, message_width=25,
-            end='\n'
+            message=message, start_time=ns.start_time, message_width=25
         )
 
 
 def fn_km(kmeans, gm, ns, trait, proc_id, container_binarized_traits, container_binarization_info, extract_covariances):
     print_status(ns, trait, proc_id)
+    logger.debug(f'Binarizing {trait=} using kmeans')
     binarized_data, metadata = apply_kmeans(kmeans, ns.numeric_df[trait])
     container_binarized_traits[trait] = binarized_data
     container_binarization_info[trait] = metadata
@@ -235,6 +236,7 @@ def fn_km(kmeans, gm, ns, trait, proc_id, container_binarized_traits, container_
 
 def fn_gm(kmeans, gm, ns, trait, proc_id, container_binarized_traits, container_binarization_info, extract_covariances):
     print_status(ns, trait, proc_id)
+    logger.debug(f'Binarizing {trait=} using gaussian mixture')
     try:
         binarized_data, metadata = apply_gm(gm, ns.numeric_df[trait], certainty_cutoff=ns.cutoff,
                                             extract_covariances=extract_covariances)
@@ -243,10 +245,10 @@ def fn_gm(kmeans, gm, ns, trait, proc_id, container_binarized_traits, container_
 
     except NotSplittableError as e:
         if ns.alternative == 'skip':
-            logger.info(f"Skipping trait '{trait}': {e}.")
+            logger.debug(f"Skipping trait '{trait}': {e}.")
             container_binarization_info[trait] = {'method': 'gaussian', 'success': False}
         elif ns.alternative == 'kmeans':
-            logger.info(f"Using kmeans for trait '{trait}': {e}")
+            logger.debug(f"Using kmeans for trait '{trait}': {e}")
             binarized_data, metadata = apply_kmeans(kmeans, ns.numeric_df[trait])
             container_binarized_traits[trait] = binarized_data
             container_binarization_info[trait] = metadata
@@ -261,11 +263,19 @@ def worker(
         queue: queue.Queue = None,
         proc_id: int = None
 ):
-    if container_binarized_traits is None:
+    if proc_id is None:
+        # single-CPU: create vessels
         container_binarized_traits = {}
-    if container_binarization_info is None:
         container_binarization_info = {}
+    else:
+        # multiprocessing: set up logging for this process
+        logger = logging.getLogger('scoary')
+        logger.propagate = False
+        if ns.outdir is not None:
+            setup_logging(logger, f'{ns.outdir}/scoary-2_proc{proc_id}.log', print_info=False)
+        logger.info(f'Setting up binarization worker {proc_id}')
 
+    # copy all data to this Python interpreter
     new_ns = grasp_namespace(BinarizeTraitNamespace, ns)
     del ns
 
@@ -273,12 +283,11 @@ def worker(
     gm = GaussianMixture(n_components=2, random_state=new_ns.random_state, covariance_type=new_ns.covariance_type)
 
     if new_ns.method == 'kmeans':
+        extract_covariances = None
         fn = fn_km
-
     elif new_ns.method == 'gaussian':
         extract_covariances = generate_extract_covariances(new_ns.covariance_type)
         fn = fn_gm
-
     else:
         raise AssertionError(f'Programming error: {new_ns.method=} must be kmeans or gaussian!')
 
@@ -302,21 +311,21 @@ def worker(
 def binarize(
         numeric_df: pd.DataFrame,
         method: str,
-        random_state: int,
-        threads: int,
+        random_state: int | None,
+        n_cpus: int,
         cutoff: float,
         covariance_type: str,
         alternative: str,
-        outfile: str = None
-) -> (pd.DataFrame, pd.DataFrame):
+        outdir: str = None
+) -> pd.DataFrame:
     """
     Convert numeric data to binary data.
 
     :param traits: Path to traits file
-    :param outfile: path to output file
+    :param outdir: path to outdir
     :return: numeric_df (DataFrame, dtype: float), traits_df (DataFrame, dtype: bool); columns: trait_names; index: strains
     """
-    if threads == 1:
+    if n_cpus == 1:
         ns, lock, counter = BinarizeTraitNamespace(), MockLock(), MockCounter()
     else:
         from .init_multiprocessing import init, mp
@@ -325,6 +334,7 @@ def binarize(
     ns = BinarizeTraitNamespace.create_namespace(ns, {
         'start_time': datetime.now(),
         'lock': lock,
+        'outdir': outdir,
         'counter': counter,
         'numeric_df': numeric_df,
         'method': method,
@@ -334,7 +344,7 @@ def binarize(
         'random_state': random_state,
     })
 
-    if threads == 1:
+    if n_cpus == 1:
         container_binarized_traits, container_binarization_info = worker(ns)
     else:
         mp.freeze_support()
@@ -345,7 +355,7 @@ def binarize(
 
         procs = [mp.Process(target=worker, args=(
             ns, container_binarized_traits, container_binarization_info, queue, i
-        )) for i in range(threads)]
+        )) for i in range(n_cpus)]
         [p.start() for p in procs]
         [p.join() for p in procs]
         container_binarized_traits = dict(container_binarized_traits)
@@ -362,18 +372,18 @@ def binarize(
     traits_df.attrs['binarization_method'] = method
     traits_df.attrs['binarization_info'] = container_binarization_info
 
-    if outfile:
-        traits_df.to_csv(outfile, sep='\t')
+    if outdir:
+        traits_df.to_csv(f'{outdir}/binarized_traits.tsv', sep='\t')
 
     return traits_df
 
 
 def load_traits(
         traits: str,
-        trait_data_type: str = 'binary',
+        trait_data_type: str = 'binary:,',
         restrict_to: str = None,
         ignore: str = None,
-        threads: int = 1,
+        n_cpus: int = 1,
         random_state: int = None,
         outdir: str = None,
         limit_traits: (int, int) = None
@@ -394,10 +404,16 @@ def load_traits(
             restrict_to=restrict_to, ignore=ignore,
             limit_traits=limit_traits
         )
+        logger.info('Binarizing traits...')
         traits_df = binarize(
             numeric_df=numeric_df, method=method, random_state=random_state,
-            cutoff=cutoff, covariance_type=covariance_type, alternative=alternative, threads=threads,
-            outfile=f'{outdir}/binarized_traits.tsv'
+            cutoff=cutoff, covariance_type=covariance_type, alternative=alternative, n_cpus=n_cpus,
+            outdir=outdir
+        )
+        print_progress(
+            i=len(numeric_df.columns), n=len(numeric_df.columns),
+            message='COMPLETE!', start_time=datetime.now(), message_width=25,
+            end='\n'
         )
 
     return numeric_df, traits_df

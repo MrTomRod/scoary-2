@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from functools import cached_property
 from typing import Optional, Callable
 
@@ -10,27 +9,6 @@ from scipy.spatial import distance
 
 from .newick import parse_newick
 from .upgma import upgma
-
-# from numba import njit, prange
-
-logger = logging.getLogger('scoary-tree')
-
-
-def union_dict_of_lists(*dicts: [{str: list}]) -> {str: list}:
-    """
-    Combines multiple dictionaries where the value is a list by combining the lists.
-
-    :param dicts: list of dictionaries that have lists as values
-    :return: combined dictionary
-    """
-    res = {}
-    for dict in dicts:
-        for key, list_ in dict.items():
-            if key in res:
-                res[key].extend(list_)
-            else:
-                res[key] = list_
-    return res
 
 
 class ScoaryTree:

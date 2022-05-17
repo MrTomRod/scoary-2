@@ -23,7 +23,7 @@ class TestTreeFunctions(TestCase):
         """
         Check if old scoary generates the equivalent tree based on genes presence/absence
         """
-        _, genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count', ignore=tetr_ignore)
+        _, genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count', ignore=roary_ignore)
         # convert to ScoaryTree
         scoary_tree = ScoaryTree.from_presence_absence(genes_df)
         # convert to list

@@ -115,6 +115,7 @@ Promise.all([loadSvgPromise, overviewPromise]).then(() => {
             instance = new bootstrap.Popover(event.target, {
                 container: 'body',
                 trigger: 'manual',
+                placement: 'left',
                 html: true,
                 title: createTooltipTitle,
                 content: createTooltipContent,

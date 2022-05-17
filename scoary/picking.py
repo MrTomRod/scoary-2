@@ -61,6 +61,24 @@ def pick(
     return max_contr, max_suppo, max_oppos, best, worst
 
 
+def pick_single(
+        tree: [],
+        label_to_trait_a: {str: bool},
+        label_to_trait_b: {str: bool},
+        calc_pvals: bool = True
+) -> {str: int | float}:
+    res = pick(
+        tree=tree,
+        label_to_trait_a=label_to_trait_a,
+        trait_b_df=pd.DataFrame([label_to_trait_b]),
+        calc_pvals=calc_pvals
+    )
+    return dict(zip(
+        ['max_contrasting_pairs', 'max_supporting_pairs', 'max_opposing_pairs', 'best_pval', 'worst_pval'],
+        [v[0] for v in res]
+    ))
+
+
 def pick_nonrecursive(
         tree: [],
         label_to_trait_a: {str: bool},
@@ -164,7 +182,8 @@ def apply_binomtest(max_contr, max_suppo, max_oppos):
 # values[n, 0, 4] -> max supporting pairs for trait n if condition 'free' is added
 
 
-@njit('int64[:, ::3, ::5](b1, boolean[:])', nogil=True, boundscheck=False, parallel=False)  # prange not better
+@njit('int64[:, ::3, ::5](b1, boolean[:])',
+      cache=True, nogil=True, boundscheck=False, parallel=False)  # prange not better
 def init_leaf(trait_a: bool, trait_b_list: np.array) -> np.array:
     n_traits = trait_b_list.shape[0]
 
@@ -193,7 +212,8 @@ def init_leaf(trait_a: bool, trait_b_list: np.array) -> np.array:
     return values
 
 
-@njit('int64[::3, ::5], int64[::3, ::5]', nogil=True, boundscheck=False, parallel=False)  # parallel kills performance
+@njit('int64[::3, ::5], int64[::3, ::5]',
+      cache=True, nogil=True, boundscheck=False, parallel=False)  # parallel kills performance
 def calculate_max_free(left: np.array, right: np.array):
     values = np.full(shape=(3, 5), fill_value=-1, dtype='int')
 
@@ -237,7 +257,8 @@ def calculate_max_free(left: np.array, right: np.array):
     return max_contr, max_suppo, max_oppos
 
 
-@njit('int64, int64[::3, ::5], int64[::3, ::5]', nogil=True, boundscheck=False, parallel=False)
+@njit('int64, int64[::3, ::5], int64[::3, ::5]',
+      cache=True, nogil=True, boundscheck=False, parallel=False)
 def calculate_max_given_condition(condition: int, left: np.array, right: np.array):  # parallel kills performance
     values = np.full(shape=(3, 9), fill_value=-1, dtype='int')
 
@@ -276,7 +297,8 @@ def calculate_max_given_condition(condition: int, left: np.array, right: np.arra
     return max_contr, max_suppo, max_oppos
 
 
-@njit('int64[:, ::3, ::5], int64[:, ::3, ::5]', nogil=True, boundscheck=False, parallel=False)
+@njit('int64[:, ::3, ::5], int64[:, ::3, ::5]',
+      cache=True, nogil=True, boundscheck=False, parallel=False)
 def combine_branches(left: np.array, right: np.array):
     assert left.shape == right.shape
     n_traits = left.shape[0]

@@ -3,15 +3,31 @@ import sys
 import json
 import logging
 import warnings
-from typing import Type, Any
+from functools import cache
+from typing import Type, Any, Callable
 from datetime import datetime
 import numpy as np
 import pandas as pd
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-
 ALLOWED_CORRECTIONS = {'bonferroni', 'sidak', 'holm-sidak', 'holm', 'simes-hochberg', 'hommel', 'fdr_bh', 'fdr_by',
                        'fdr_tsbh', 'fdr_tsbky'}
+
+logger = logging.getLogger('scoary.utils')
+
+try:
+    from ete3 import Tree as EteTree
+
+
+    def print_tree(scoary_tree, label_to_gene: {str: bool}, label_to_trait: {str: bool}):
+        renamed_tree = scoary_tree.rename(
+            lambda label: f'{int(label_to_gene[label])}{int(label_to_trait[label])}_{label}')
+        ete_tree = EteTree(renamed_tree.to_newick())
+        print(ete_tree)
+
+except ImportError as e:
+    def print_tree(scoary_tree, label_to_gene: {str: bool}, label_to_trait: {str: bool}):
+        raise ImportError('This function requires the ete3 library. Please install via "pip install ete3"')
 
 
 def decode_unicode(string: str) -> str:
@@ -27,22 +43,24 @@ def setup_outdir(outdir: str, input: dict) -> str:
     return outdir
 
 
-def setup_logging(path: str):
-    # print only warnings to console
-    # todo: is this needed?
-    # stdout = logging.StreamHandler()
-    # stdout.setLevel(logging.WARNING)
-    # logging.getLogger('root').addHandler(stdout)
+def setup_logging(logger, path: str, print_info: bool = True):
+    # configure logger such that:
+    #  - everything including DEBUG goes to log files
+    #  - INFO and higher goes to stdout
+    logger.setLevel(logging.DEBUG)
 
-    # create logfile that contains all logs
+    # create logfile
     logfile = logging.FileHandler(path)
-    logfile.setLevel(logging.INFO)
+    logfile.setLevel(logging.DEBUG)
+    logfile.setFormatter(logging.Formatter("%(asctime)s [%(name)s: %(levelname)s] %(message)s"))
+    logger.addHandler(logfile)
 
-    # add handler to all existing loggers
-    for name in logging.root.manager.loggerDict:
-        logger = logging.getLogger(name)
-        logger.setLevel(logging.INFO)
-        logger.addHandler(logfile)
+    if print_info:
+        # create streamhandler
+        stdout = logging.StreamHandler()
+        stdout.setLevel(logging.INFO)
+        logger.addHandler(stdout)
+    return logger
 
 
 def ignore_warnings(warning: Type[Warning]):
@@ -86,11 +104,11 @@ class RecursionLimit:
 
     def __enter__(self):
         self.old = sys.getrecursionlimit()
-        logging.info(f'Setting new recursion limit: {self.old} -> {self.new}')
+        logger.debug(f'Setting new recursion limit: {self.old} -> {self.new}')
         sys.setrecursionlimit(self.new)
 
     def __exit__(self, *args, **kwargs):
-        logging.info(f'Setting old recursion limit: {self.new} -> {self.old}')
+        logger.debug(f'Setting old recursion limit: {self.new} -> {self.old}')
         sys.setrecursionlimit(self.old)
 
 
@@ -190,9 +208,9 @@ def load_info_file(
         overlap_size = len(set.intersection(set(info_df.index), expected_overlap_set))
         if overlap_size == 0:
             logger.warning(f'The {merge_col}s in {info_file} do not match any {merge_col}s in {reference_file}')
-        logger.info(f'Loaded descriptions for {overlap_size} {merge_col}s')
+        logger.debug(f'Loaded descriptions for {overlap_size} {merge_col}s')
 
-    logger.info(f'Loaded {merge_col} descriptions. columns={info_df.columns.tolist()}')
+    logger.debug(f'Loaded {merge_col} descriptions. columns={info_df.columns.tolist()}')
     assert not info_df.index.has_duplicates, \
         f'{info_file} contains duplicates: {info_df.index[info_df.index.duplicated()]}'
     return info_df
@@ -276,12 +294,13 @@ class AnalyzeTraitNamespace(AbstractNamespace):
     n_permut: int
     all_label_to_gene: dict
     random_state: int
-    no_pairwise: bool
+    pairwise: bool
 
 
 class BinarizeTraitNamespace(AbstractNamespace):
     counter: MockCounter
     lock: MockLock
+    outdir: str
     start_time: datetime
     numeric_df: pd.DataFrame
     random_state: int

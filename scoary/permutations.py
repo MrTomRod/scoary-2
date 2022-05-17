@@ -8,7 +8,7 @@ from .KeyValueStore import KeyValueStore
 from .picking import pick
 from .ScoaryTree import ScoaryTree
 
-logger = logging.getLogger('scoary-picking')
+logger = logging.getLogger('scoary.permutations')
 
 
 class ConfintStore(KeyValueStore):
@@ -57,6 +57,7 @@ def create_permuted_df(labels: [str], n_positive: int, n_permut: int, random_sta
 
 
 def permute_picking(
+        trait:str,
         tree: ScoaryTree,
         label_to_trait: {str: bool},
         result_df: pd.DataFrame,
@@ -99,7 +100,7 @@ def permute_picking(
         pval = ((permuted_estimators >= estimator).sum() + 1) / (n_permut + 1)
         pvals.append(pval)
 
-    logger.info(f'reused {n_reused} out of {len(result_df)}')
+    logger.debug(f'{trait}: reused {n_reused} out of {len(result_df)}')
 
     return pvals
 
@@ -141,13 +142,13 @@ def permute_gene_picking(
             CURRENT_CACHE[n_pos_assoc] = permuted_estimators
         else:
             n_reused += 1
-            print(f'reusing {row.Gene}')
+            logger.debug(f'reusing {row.Gene}')
             permuted_estimators = CURRENT_CACHE[n_pos_assoc]
 
         pval = ((permuted_estimators >= estimator).sum() + 1) / (n_permut + 1)
         pvals.append(pval)
 
-    logger.info(f'reused {n_reused} out of {len(result_df)}')
+    logger.debug(f'reused {n_reused} out of {len(result_df)}')
 
     return pvals
 

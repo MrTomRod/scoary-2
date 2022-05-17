@@ -4,7 +4,6 @@ import pandas as pd
 from os.path import dirname, exists
 from scipy.spatial import distance
 from scipy.stats import fisher_exact, boschloo_exact
-from ete3 import Tree as EteTree
 
 from unittest import TestCase
 
@@ -39,6 +38,10 @@ DATA = {
     },
     'bigger_ds': {
         'traits': 'trait_trees.csv',
+        'genes': 'pres_abs.csv',
+        'tree': 'newick.nwk',
+        'result-t1': 't1.results.csv',
+        'result-t2': 't2.results.csv',
     },
     'new_ds': {
         'genes-og': 'Orthogroups.tsv',
@@ -60,10 +63,6 @@ DATA = {
     },
 
 }
-for tree_id in range(5):
-    DATA['bigger_ds'][f'genes-{tree_id}'] = f'pres_abs_tree_id_{tree_id}.csv'
-    DATA['bigger_ds'][f't1-{tree_id}'] = f't1.{tree_id}.results.csv'
-    DATA['bigger_ds'][f't2-{tree_id}'] = f't2.{tree_id}.results.csv'
 
 VCF_DATA = {
     'vcf': {
@@ -72,9 +71,10 @@ VCF_DATA = {
     }
 }
 
-tetr_ignore = ['Non-unique Gene name', 'Annotation', 'No. isolates', 'No. sequences', 'Avg sequences per isolate',
-               'Genome fragment', 'Order within fragment', 'Accessory Fragment', 'Accessory Order with Fragment', 'QC',
-               'Min group size nuc', 'Max group size nuc', 'Avg group size nuc']
+roary_ignore = ['Non-unique Gene name', 'Annotation', 'No. isolates', 'No. sequences', 'Avg sequences per isolate',
+                'Genome fragment', 'Order within fragment', 'Accessory Fragment', 'Accessory Order with Fragment', 'QC',
+                'Min group size nuc', 'Max group size nuc', 'Avg group size nuc']
+orthofinder_ignore = ['OG', 'Gene Tree Parent Clade']
 
 
 def get_path(ds: str, key: str, data=DATA):
@@ -103,13 +103,6 @@ def is_equivalent_tree(a, b) -> bool:
                ) or (
                        is_equivalent_tree(a[0], b[1]) and is_equivalent_tree(a[1], b[0])
                )
-
-
-def print_tree_for_debugging(scoary_tree, label_to_gene, label_to_trait):
-    renamed_tree = scoary_tree.rename(lambda label: f'{int(label_to_gene[label])}{int(label_to_trait[label])}_{label}')
-    ete_tree = EteTree(renamed_tree.to_newick())
-    print(ete_tree)
-    print(renamed_tree.to_newick())
 
 
 def get_tempdir_path() -> str:

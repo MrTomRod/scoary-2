@@ -1,5 +1,7 @@
 import multiprocessing as mp
 
+mp.set_start_method('spawn')
+
 
 def init():
     mgr = mp.Manager()

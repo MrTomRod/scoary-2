@@ -3,10 +3,10 @@ from .utils import *
 from .ScoaryTree import ScoaryTree
 from .load_genes import load_genes
 from .load_traits import load_traits
-from .create_final_overview import create_final_overview
+from .final_overview import create_final_overview
 from .analyze_trait import analyze_trait, worker
 
-logger = logging.getLogger('scoary-main')
+logger = logging.getLogger('scoary')
 
 
 def scoary(
@@ -19,20 +19,51 @@ def scoary(
         trait_info: str = None,
         isolate_info: str = None,
         newicktree: str = None,
-        no_pairwise: bool = False,  # ?
-        n_permut: int = 0,
+        pairwise: bool = True,
+        n_permut: int = 500,
         restrict_to: str = None,
         ignore: str = None,
-        threads: int = 1,
+        n_cpus: int = 1,
         trait_data_type: str = 'binary:,',
-        gene_data_type: str = 'gene-count',
+        gene_data_type: str = 'gene-count:,',
         random_state: int = None,
         limit_traits: (int, int) = None,
-):
+) -> None:
+    """
+    Scoary 2: Associate genes with traits!
+
+    :param genes: Path to gene presence/absence table: columns=isolates, rows=genes
+    :param traits: Path to trait presence/absence table: columns=traits, rows=isolates
+    :param outdir: Directory to place output files
+    :param multiple_testing_fisher: "method:cutoff" for filtering genes after Fisher's test, where cutoff is a number
+     and method is one of [bonferroni, sidak, holm-sidak, holm, simes-hochberg, hommel, fdr_bh, fdr_by,  fdr_tsbh,
+     fdr_tsbky]
+    :param multiple_testing_picking: "method:cutoff" for filtering genes after the pairwise comparisons algorithm, where
+     cutoff is a number and method is one of [bonferroni, sidak, holm-sidak, holm, simes-hochberg, hommel, fdr_bh,
+     fdr_by,  fdr_tsbh, fdr_tsbky]
+    :param gene_info: Path to file that describes genes: columns=arbitrary properties, rows=genes
+    :param trait_info: Path to file that describes traits: columns=arbitrary properties, rows=traits
+    :param isolate_info: Path to file that describes isolates: columns=arbitrary properties, rows=isolates
+    :param newicktree: Path to a custom tree in Newick format
+    :param pairwise: If False, only perform Fisher's test. If True, also perform pairwise comparisons
+     algorithm.
+    :param n_permut: Post-hoc label-switching test: perform N permutations of the phenotype by random label switching.
+     Low p-values suggest that the effect is not merely lineage-specific.
+    :param restrict_to: Comma-separated list of isolates to which to restrict this analysis
+    :param ignore: Comma-separated list of isolates to be ignored for this analysis
+    :param n_cpus: Number of CPUs that should be used
+    :param trait_data_type: "<method>:<?cutoff>:<?covariance_type>:<?alternative>:<?delimiter>" How to read the traits
+     table. Example: "gene-list:\\t" for OrthoFinder N0.tsv table
+    :param gene_data_type: "<data_type>:<?delimiter>" How to read the genes table. Example: "gene-list:\\t" for
+     OrthoFinder N0.tsv table
+    :param random_state: Set a fixed seed for the random number generator
+    :param limit_traits: Limit the analysis to traits n to m. Useful for debugging. Example: "(0, 10)"
+    """
+    print('Welcome to Scoary 2!')
     trait_data_type = decode_unicode(trait_data_type)
     gene_data_type = decode_unicode(gene_data_type)
     outdir = setup_outdir(outdir, input=locals())
-    setup_logging(f'{outdir}/scoary-2.log')
+    setup_logging(logger, f'{outdir}/scoary-2.log')
 
     mt_f_method, mt_f_cutoff = parse_correction(multiple_testing_fisher)
     mt_p_method, mt_p_cutoff = parse_correction(multiple_testing_picking)
@@ -40,12 +71,13 @@ def scoary(
     assert n_permut == 0 or n_permut >= 100, f'{n_permut=} must be at least 100.'
 
     # load traits data  (numeric_df may be None)
+    logger.info('Loading traits...')
     numeric_df, traits_df = load_traits(
         traits=traits,
         trait_data_type=trait_data_type,
         restrict_to=restrict_to,
         ignore=ignore,
-        threads=threads,
+        n_cpus=n_cpus,
         random_state=random_state,
         outdir=outdir,
         limit_traits=limit_traits
@@ -53,33 +85,36 @@ def scoary(
 
     # dynamically set recursion limit, should work for ~ 13'000 isolates
     _recursion_limit = max(1000, 100 + len(traits_df.index) ** 2)
-    logger.warning(f'Setting recursion limit to {_recursion_limit}')
+    logger.debug(f'Setting recursion limit to {_recursion_limit}')
     sys.setrecursionlimit(_recursion_limit)
 
-    # load traits info
-    trait_info_df = load_info_file(
-        logger=logger, info_file=trait_info, merge_col='Trait',
-        expected_overlap_set=set(traits_df.columns), reference_file=traits
-    ) if trait_info else None
+    if trait_info:
+        logger.info('Loading trait info...')
+        trait_info = load_info_file(
+            logger=logger, info_file=trait_info, merge_col='Trait',
+            expected_overlap_set=set(traits_df.columns), reference_file=traits
+        )
 
-    # load genes data
+    logger.info('Loading genes...')
     genes_orig_df, genes_bool_df = load_genes(
         genes,
         gene_data_type=gene_data_type,
         restrict_to=traits_df.index,
     )
 
-    # load genes info
-    gene_info_df = load_info_file(
-        logger=logger, info_file=gene_info, merge_col='Gene',
-        expected_overlap_set=set(genes_bool_df.index), reference_file=genes
-    ) if gene_info else None
+    if gene_info:
+        logger.info('Loading gene info...')
+        gene_info = load_info_file(
+            logger=logger, info_file=gene_info, merge_col='Gene',
+            expected_overlap_set=set(genes_bool_df.index), reference_file=genes
+        )
 
-    # load isolate info
-    isolate_info_df = load_info_file(
-        logger=logger, info_file=isolate_info, merge_col='Isolate',
-        expected_overlap_set=set(genes_bool_df.columns), reference_file='placeholder'
-    ) if isolate_info else None
+    if isolate_info:
+        logger.info('Loading isolate info...')
+        isolate_info = load_info_file(
+            logger=logger, info_file=isolate_info, merge_col='Isolate',
+            expected_overlap_set=set(genes_bool_df.columns), reference_file='placeholder'
+        )
 
     # create convenient dictionary: {gene: {label: bool})
     all_label_to_gene = get_all_label_to_gene(genes_bool_df)
@@ -89,6 +124,7 @@ def scoary(
         logger.info('Generating phylogenetic tree from gene presence-absence-matrix...')
         tree = ScoaryTree.from_presence_absence(genes_bool_df)
     else:
+        logger.info('Loading phylogenetic tree from newick file...')
         with open(newicktree) as f:
             tree = ScoaryTree.from_newick(f.read())
     tree.write_newick(f'{outdir}/tree.nwk')
@@ -97,7 +133,8 @@ def scoary(
 
     duplication_df = create_duplication_df(traits_df)
 
-    if threads == 1:
+    logger.info('Finalizing setup...')
+    if n_cpus == 1:
         ns, counter, lock = AnalyzeTraitNamespace(), MockCounter(), MockLock()
     else:
         from .init_multiprocessing import init, mp
@@ -110,10 +147,10 @@ def scoary(
         'outdir': outdir,
         'genes_orig_df': genes_orig_df,
         'genes_bool_df': genes_bool_df,
-        'gene_info_df': gene_info_df,
+        'gene_info_df': gene_info,
         'numeric_df': numeric_df,
         'traits_df': traits_df,
-        'trait_info_df': trait_info_df,
+        'trait_info_df': trait_info,
         'duplication_df': duplication_df,
         'tree': tree,
         'all_labels': all_labels,
@@ -124,19 +161,20 @@ def scoary(
         'n_permut': n_permut,
         'all_label_to_gene': all_label_to_gene,
         'random_state': random_state,
-        'no_pairwise': no_pairwise,
+        'pairwise': pairwise,
     })
 
     traits = traits_df.columns.to_list()
 
-    if threads == 1:
+    logger.info('Start analyzing traits...')
+    if n_cpus == 1:
         trait_to_result = {trait: analyze_trait(trait, ns) for trait in traits}
     else:
         mp.freeze_support()
         queue = mgr.JoinableQueue()
         trait_to_result = mgr.dict()
         [queue.put(trait) for trait in traits]
-        procs = [mp.Process(target=worker, args=(queue, ns, trait_to_result, i)) for i in range(threads)]
+        procs = [mp.Process(target=worker, args=(queue, ns, trait_to_result, i)) for i in range(n_cpus)]
         [p.start() for p in procs]
         [p.join() for p in procs]
 
@@ -145,20 +183,29 @@ def scoary(
         message='COMPLETE!', start_time=ns.start_time, message_width=25,
         end='\n'
     )
+
     summary_df = create_summary_df(trait_to_result)
     if summary_df is None and len(summary_df) == 0:
-        logging.warning(f'no content in summary_df')
+        logger.info('Nothing left after filtration!')
     else:
-        create_final_overview(summary_df, ns, isolate_info_df)
+        create_final_overview(summary_df, ns, isolate_info)
+
+    logger.info('Complete success!')
 
     print(CITATION)
 
 
 def create_summary_df(trait_to_result: {str: [dict | str | None]}) -> pd.DataFrame | None:
     """
-    Turn trait_to_result into a pandas.DataFrame
-    :param trait_to_result:
-    :return:
+    Turn trait_to_result into a pandas.DataFrame. Example:
+
+             min_pval      min_qval  min_pval_empirical  min_qval_empirical
+    Trait_1  0.574066  4.384058e-01            0.035964            0.035964
+    Trait_2  0.432940  2.667931e-01            0.133866            0.133866
+    Trait_3  0.194418  7.981206e-08            0.020979            0.691309
+
+    :param trait_to_result: dictionary where keys are trait names and values are either dict|str|None
+    :return: pandas.DataFrame
     """
     # res may contain: float, str or None
     # float: smallest empirical pvalue
@@ -170,16 +217,10 @@ def create_summary_df(trait_to_result: {str: [dict | str | None]}) -> pd.DataFra
     trait_to_result = {t: r for t, r in trait_to_result.items() if r is not None}  # remove Nones
 
     if len(trait_to_result) == 0:
-        logging.warning(f'No traits left after filtering!')
+        logger.warning(f'No traits left after filtering!')
         return
 
     summary_df = pd.DataFrame(trait_to_result).T
-    """      min_pval      min_qval  min_pval_empirical  min_qval_empirical
-    Trait_1  0.574066  4.384058e-01            0.035964            0.035964
-    Trait_2  0.432940  2.667931e-01            0.133866            0.133866
-    Trait_3  0.194418  7.981206e-08            0.020979            0.691309
-    ...
-    """
 
     return summary_df
 
