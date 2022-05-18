@@ -16,10 +16,18 @@ from .utils import setup_logging, AnalyzeTraitNamespace, get_label_to_trait, fis
 logger = logging.getLogger('scoary.analyze_trait')
 
 
-def worker(q, ns: AnalyzeTraitNamespace, result_container: {str: float | str | None}, proc_id):
-    logger = logging.getLogger('scoary')
-    logger.propagate = False
-    setup_logging(logger, f'{ns.outdir}/scoary-2_proc{proc_id}.log', print_info=False)
+def worker(
+        q,
+        ns: AnalyzeTraitNamespace,
+        result_container: {str: float | str | None},
+        proc_id: int
+):
+    logger = setup_logging(
+        logger=logging.getLogger('scoary'),
+        path=f'{ns.outdir}/scoary-2_proc{proc_id}.log',
+        print_info=False,
+        reset=True
+    )
     logger.info(f'Setting up trait analysis worker {proc_id}')
 
     new_ns = grasp_namespace(AnalyzeTraitNamespace, ns)

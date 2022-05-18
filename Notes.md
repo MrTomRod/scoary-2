@@ -8,10 +8,11 @@ Create update:
 2) Create new package and upload:
 
 ```bash
+SCOARY_VERSION="?.?.?"
 # build: will create files in dist/
 poetry build
 # test: install .whl file
-pip install dist/scoary_2-*-py3-none-any.whl
+pip install dist/scoary_2-$SCOARY_VERSION-py3-none-any.whl
 # upload
 poetry publish
 ```
@@ -29,8 +30,8 @@ Publish docker image:
 ```shell
 # podman login docker.io --get-login
 # podman login docker.io
-podman tag troder/scoary-2 troder/scoary-2:<scoary-version>
-podman push troder/scoary-2:<scoary-version>
+podman tag troder/scoary-2 troder/scoary-2:$SCOARY_VERSION
+podman push troder/scoary-2:$SCOARY_VERSION
 
 # update tag 'latest'
 podman tag troder/scoary-2 troder/scoary-2:latest

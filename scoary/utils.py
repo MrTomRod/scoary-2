@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import logging
+from copy import deepcopy
 import warnings
 from functools import cache
 from typing import Type, Any, Callable
@@ -43,23 +44,37 @@ def setup_outdir(outdir: str, input: dict) -> str:
     return outdir
 
 
-def setup_logging(logger, path: str, print_info: bool = True):
-    # configure logger such that:
-    #  - everything including DEBUG goes to log files
-    #  - INFO and higher goes to stdout
+def setup_logging(logger: logging.Logger, path: str = None, print_info: bool = True, reset: bool = False):
+    """
+    Setup logging for Scoary
+
+    :param logger: logging.logging.Logger
+    :param path: if set, DEBUG and higher goes to log files
+    :param print_info: if True, INFO and higher goes to stdout
+    :param reset: if True: close and remove all file handlers. (Important for multiprocessing: removes locks!)
+    :return:
+    """
+    if reset:
+        while logger.handlers:
+            handler = logger.handlers[0]
+            handler.close()
+            logger.removeHandler(handler)
+
     logger.setLevel(logging.DEBUG)
 
-    # create logfile
-    logfile = logging.FileHandler(path)
-    logfile.setLevel(logging.DEBUG)
-    logfile.setFormatter(logging.Formatter("%(asctime)s [%(name)s: %(levelname)s] %(message)s"))
-    logger.addHandler(logfile)
+    if path is not None:
+        # create logfile
+        logfile = logging.FileHandler(path)
+        logfile.setLevel(logging.DEBUG)
+        logfile.setFormatter(logging.Formatter("%(asctime)s [%(name)s: %(levelname)s] %(message)s"))
+        logger.addHandler(logfile)
 
     if print_info:
         # create streamhandler
         stdout = logging.StreamHandler()
         stdout.setLevel(logging.INFO)
         logger.addHandler(stdout)
+
     return logger
 
 
@@ -266,10 +281,10 @@ def grasp_namespace(cls, ns):
     new_ns = cls()
     for name in cls.__dict__['__annotations__'].keys():
         value = getattr(ns, name)
-        if type(value) in (np.ndarray, pd.DataFrame):
-            setattr(new_ns, name, value.__deepcopy__())
-        else:
+        if name in ['lock', 'counter']:
             setattr(new_ns, name, value)
+        else:
+            setattr(new_ns, name, deepcopy(value))
     return new_ns
 
 

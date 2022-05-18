@@ -68,6 +68,8 @@ def load_binary(traits: str, delimiter: str, restrict_to: str = None, ignore: st
 
     traits_df.index.name = 'Isolate'
 
+    logger.debug(f'Loaded binary traits_df:\n{traits_df}')
+
     return traits_df
 
 
@@ -93,6 +95,8 @@ def load_numeric(traits: str, delimiter: str, restrict_to: str = None, ignore: s
     numeric_df = filter_df(numeric_df, restrict_to, ignore)
 
     numeric_df.index.name = 'Isolate'
+
+    logger.debug(f'Loaded numeric_df:\n{numeric_df}')
 
     return numeric_df
 
@@ -269,10 +273,12 @@ def worker(
         container_binarization_info = {}
     else:
         # multiprocessing: set up logging for this process
-        logger = logging.getLogger('scoary')
-        logger.propagate = False
-        if ns.outdir is not None:
-            setup_logging(logger, f'{ns.outdir}/scoary-2_proc{proc_id}.log', print_info=False)
+        logger = setup_logging(
+            logger=logging.getLogger('scoary'),
+            path=f'{ns.outdir}/scoary-2_proc{proc_id}.log',
+            print_info=False,
+            reset=True
+        )
         logger.info(f'Setting up binarization worker {proc_id}')
 
     # copy all data to this Python interpreter
@@ -374,6 +380,8 @@ def binarize(
 
     if outdir:
         traits_df.to_csv(f'{outdir}/binarized_traits.tsv', sep='\t')
+
+    logger.debug(f'Binarized traits:\n{traits_df}')
 
     return traits_df
 
