@@ -31,6 +31,14 @@ except ImportError as e:
         raise ImportError('This function requires the ete3 library. Please install via "pip install ete3"')
 
 
+class NotSplittableError(Exception):
+    pass
+
+
+class NoTraitsLeftException(Exception):
+    pass
+
+
 def decode_unicode(string: str) -> str:
     return string.encode('utf-8').decode('unicode-escape')
 
@@ -39,7 +47,9 @@ def setup_outdir(outdir: str, input: dict) -> str:
     outdir = outdir.rstrip('/')
     assert not os.path.exists(outdir), f'ERROR: {outdir=} already exists!'
     os.makedirs(f'{outdir}/traits')
-    with open(f'{outdir}/input.json', 'w') as f:
+    os.makedirs(f'{outdir}/logs')
+    os.makedirs(f'{outdir}/app')
+    with open(f'{outdir}/logs/input.json', 'w') as f:
         json.dump(input, f, indent=4)
     return outdir
 

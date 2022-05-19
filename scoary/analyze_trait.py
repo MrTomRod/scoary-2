@@ -2,6 +2,7 @@ import os
 import logging
 from collections import defaultdict
 import json
+import numpy as np
 import pandas as pd
 from statsmodels.stats.multitest import multipletests
 from fast_fisher.fast_fisher_numba import odds_ratio, test1t as fisher_exact_two_tailed
@@ -24,7 +25,7 @@ def worker(
 ):
     logger = setup_logging(
         logger=logging.getLogger('scoary'),
-        path=f'{ns.outdir}/scoary-2_proc{proc_id}.log',
+        path=f'{ns.outdir}/logs/scoary-2_proc{proc_id}.log',
         print_info=False,
         reset=True
     )
@@ -68,9 +69,9 @@ def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) ->
     result_df = init_result_df(ns.genes_bool_df, label_to_trait)
     test_df = create_test_df(result_df)
     test_df = add_odds_ratio(test_df)
-    min_qval, test_df = perform_multiple_testing_correction(
+    test_df = perform_multiple_testing_correction(
         test_df, col='pval',
-        method=ns.mt_f_method, cutoff=ns.mt_f_cutoff,
+        method=ns.mt_f_method, cutoff=ns.mt_f_cutoff, is_sorted=True
     )
 
     if len(test_df) == 0:
@@ -84,10 +85,11 @@ def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) ->
     )
 
     result_df.attrs.update(test_df.attrs)
-    result_df.attrs['min_pval'] = result_df['pval'].min()
-    result_df.attrs['min_qval'] = result_df['qval'].min()
 
-    if ns.pairwise:
+    if not ns.pairwise:
+        result_df.attrs['best_pval'] = result_df['pval'].min()
+        result_df.attrs['best_qval'] = result_df['qval'].min()
+    else:
         result_df = pair_picking(
             result_df,
             significant_genes_df=ns.genes_bool_df.loc[result_df.Gene],
@@ -105,9 +107,14 @@ def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) ->
                 n_permut=ns.n_permut,
                 random_state=ns.random_state
             )
-            result_df.sort_values(by='pval_empirical', inplace=True)
 
-            result_df.attrs['min_pval_empirical'] = result_df['pval_empirical'][0]
+            result_df['q*emp'] = result_df['qval'] * result_df['pval_empirical']
+            result_df.sort_values(by='q*emp', inplace=True, ascending=False)
+
+            result_df.attrs['best_pval'] = result_df['pval'][0]
+            result_df.attrs['best_qval'] = result_df['qval'][0]
+            result_df.attrs['best_pval_empirical'] = result_df['pval_empirical'][0]
+            result_df.attrs['q*emp'] = result_df['q*emp'][0]
 
             if len(result_df) == 0:
                 logging.info(f'Found 0 genes for {trait=} '
@@ -144,7 +151,7 @@ def save_result_df(trait: str, ns: AnalyzeTraitNamespace, result_df: pd.DataFram
                 additional_columns + \
                 ['g+t+', 'g+t-', 'g-t+', 'g-t-',
                  'sensitivity', 'specificity', 'odds_ratio',
-                 'pval', 'qval', 'pval_empirical',
+                 'pval', 'qval', 'pval_empirical', 'q*emp',
                  'contrasting', 'supporting', 'opposing', 'best', 'worst']
     result_df = result_df[[col for col in col_order if col in result_df.columns]]
 
@@ -282,6 +289,7 @@ def perform_multiple_testing_correction(
         method: str,
         cutoff: float,
         col: str,
+        is_sorted=True
 ) -> (float, pd.DataFrame):
     assert 'pval' in col
     new_col = col.replace('pval', 'qval')
@@ -289,12 +297,11 @@ def perform_multiple_testing_correction(
         pvals=test_df[col],
         alpha=cutoff,
         method=method,
-        is_sorted=True,
+        is_sorted=is_sorted,
     )
     test_df[new_col] = qval
     test_df = test_df[reject]
-    min_qval = qval[0]
-    return min_qval, test_df
+    return test_df
 
 
 def pair_picking(result_df: pd.DataFrame, significant_genes_df: pd.DataFrame, tree: ScoaryTree,

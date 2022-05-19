@@ -63,7 +63,7 @@ def scoary(
     trait_data_type = decode_unicode(trait_data_type)
     gene_data_type = decode_unicode(gene_data_type)
     outdir = setup_outdir(outdir, input=locals())
-    setup_logging(logger, f'{outdir}/scoary-2.log')
+    setup_logging(logger, f'{outdir}/logs/scoary-2.log')
 
     mt_f_method, mt_f_cutoff = parse_correction(multiple_testing_fisher)
     mt_p_method, mt_p_cutoff = parse_correction(multiple_testing_picking)
@@ -184,13 +184,14 @@ def scoary(
         end='\n'
     )
 
-    summary_df = create_summary_df(trait_to_result)
-    if summary_df is None and len(summary_df) == 0:
-        logger.info('Nothing left after filtration!')
-    else:
+    try:
+        summary_df = create_summary_df(trait_to_result)
         create_final_overview(summary_df, ns, isolate_info)
 
-    logger.info('Complete success!')
+        logger.info('Complete success!')
+
+    except NoTraitsLeftException as e:
+        logger.info(str(e))
 
     print(CITATION)
 
@@ -199,7 +200,7 @@ def create_summary_df(trait_to_result: {str: [dict | str | None]}) -> pd.DataFra
     """
     Turn trait_to_result into a pandas.DataFrame. Example:
 
-             min_pval      min_qval  min_pval_empirical  min_qval_empirical
+            best_pval     best_qval best_pval_empirical best_qval_empirical
     Trait_1  0.574066  4.384058e-01            0.035964            0.035964
     Trait_2  0.432940  2.667931e-01            0.133866            0.133866
     Trait_3  0.194418  7.981206e-08            0.020979            0.691309
@@ -217,10 +218,11 @@ def create_summary_df(trait_to_result: {str: [dict | str | None]}) -> pd.DataFra
     trait_to_result = {t: r for t, r in trait_to_result.items() if r is not None}  # remove Nones
 
     if len(trait_to_result) == 0:
-        logger.warning(f'No traits left after filtering!')
-        return
+        raise NoTraitsLeftException('No traits left after filtering')
 
     summary_df = pd.DataFrame(trait_to_result).T
+
+    logger.debug(f'Created summary_df:\n{summary_df}')
 
     return summary_df
 

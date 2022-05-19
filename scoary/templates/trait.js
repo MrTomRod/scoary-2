@@ -36,6 +36,7 @@ if (!urlParams.has('trait')) {
     throw Error(msg)
 }
 const trait = urlParams.get('trait')
+document.title = `${trait} (Scoary 2)`
 
 
 /**
@@ -100,7 +101,7 @@ documentReadyPromise.then(() => document.querySelector('#trait-name').textConten
 /**
  * Promise for config.json. Returns the dictionary object.
  */
-const configPromise = fetch(`config.json`)
+const configPromise = fetch(`app/config.json`)
     .then(response => response.json())
     .then(config => {
         if (config['table-config']['sanitize-genes']) {
@@ -147,7 +148,7 @@ metaPromise.then(metaData => {
                 </tr>`
         }
 
-        document.getElementById('trait-content').innerHTML=html
+        document.getElementById('trait-content').innerHTML = html
         // show element
         document.getElementById('trait-metadata').hidden = false
         // do not show metaData.info twice
@@ -224,8 +225,11 @@ const tablePromise = configPromise.then(config => {
         })
         tableData.index = tableData['data'].map(col => col['Gene'])
         tableData.orderCol = tableData.meta.fields.indexOf(
-            tableData.meta.fields.includes('pval_empirical') ? 'pval_empirical' : 'qval')
+            tableData.meta.fields.includes('q*emp') ? 'q*emp' : 'qval')
+        tableData.order = 'asc'
         tableData.hiddenCols = tableConfig['default-hidden-cols'].map(col => tableData.meta.fields.indexOf(col))
+
+        console.log('tableData', tableData)
 
         return tableData
     })
@@ -236,13 +240,16 @@ const tablePromise = configPromise.then(config => {
  * Load Genes table.
  */
 const genesTablePromise = Promise.all([tablePromise, documentReadyPromise]).then(([tableData, _]) => {
+    console.log(tableData.data)
+    console.log(tableData.columns)
+    console.log(tableData.hiddenCols)
     tableData.table = $('#result-tsv').DataTable({
         data: tableData.data,
         columns: tableData.columns,
         paging: false,
         responsive: true,
-        "order": [[tableData.orderCol, "asc"]],
-        "columnDefs": [{
+        order: [[tableData.orderCol, tableData.order]],
+        columnDefs: [{
             "targets": tableData.hiddenCols, "visible": false, "searchable": false
         }]
     })

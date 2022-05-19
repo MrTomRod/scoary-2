@@ -256,12 +256,14 @@ print(f'{max_contr=}\n{max_suppo=}\n{max_oppos=}\n{best=}\n{worst=}')
 # Todo:
 
 - [X] Binarize traits during multiprocessing
-- [ ] Idea: min_qval * min_pval_empirical as new score
-- [ ] Improve messaging and logging
+- [X] Idea: min_qval * min_pval_empirical as new score
+- [X] Improve messaging and logging
+- [ ] Remove multiple_testing_picking, more like Scoary 1 syntax?
 - [ ] Add links to `summary.tsv` / `coverage-matrix.tsv` / `result.tsv`
 - [ ] Benchmark?
+- [ ] Log runtime?
 - [ ] Refactoring
 - [X] `overview.html`: go to function, popover always left
-- [ ] `overview.html` & `trait.html`: set proper title
+- [ ] `overview.html` & `trait.html`: set proper title, add favicon
 - [ ] `overview.html` & `trait.html`: link to table download
 - [ ] Improve `README.md`

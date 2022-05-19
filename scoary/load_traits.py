@@ -13,15 +13,11 @@ from sklearn.mixture import GaussianMixture
 
 from scoary.progressbar import print_progress
 from .utils import setup_logging, is_float, ignore_warnings, BinarizeTraitNamespace, MockLock, MockCounter, \
-    grasp_namespace
+    grasp_namespace, NotSplittableError
 from queue import Empty
 
 logger = logging.getLogger('scoary.load_traits')
 STR_NA_VALUES.update(['-', '.'])  # compatibility with Scoary 1
-
-
-class NotSplittableError(Exception):
-    pass
 
 
 def filter_df(df: pd.DataFrame, restrict_to: str = None, ignore: str = None) -> pd.DataFrame:
@@ -275,7 +271,7 @@ def worker(
         # multiprocessing: set up logging for this process
         logger = setup_logging(
             logger=logging.getLogger('scoary'),
-            path=f'{ns.outdir}/scoary-2_proc{proc_id}.log',
+            path=f'{ns.outdir}/logs/scoary-2_proc{proc_id}.log',
             print_info=False,
             reset=True
         )

@@ -1,10 +1,5 @@
 "use strict"
 
-/**
- * todo:
- * - nan in json
- */
-
 
 for (const attr of ['table', 'thead', 'tbody', 'tr', 'td', 'th']) {
     bootstrap.Tooltip.Default.allowList[attr] = []
@@ -115,7 +110,7 @@ Promise.all([loadSvgPromise, overviewPromise]).then(() => {
             instance = new bootstrap.Popover(event.target, {
                 container: 'body',
                 trigger: 'manual',
-                placement: 'left',
+                placement: 'right',
                 html: true,
                 title: createTooltipTitle,
                 content: createTooltipContent,
@@ -234,4 +229,3 @@ Promise.all([loadSvgPromise, overviewPromise]
         },
     })
 })
-

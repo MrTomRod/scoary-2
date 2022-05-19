@@ -15,6 +15,8 @@ class Test(TestCase):
 
         os.makedirs(self.temp_dir, exist_ok=True)
         call(f'rm -rf {self.temp_dir}/*', shell=True)
+        for dir_ in ['app', 'traits', 'logs']:
+            os.makedirs(self.temp_dir + dir_, exist_ok=True)
 
     def tearDown(self) -> None:
         print(f'Open file://{self.temp_dir} to see the result!')
@@ -22,13 +24,14 @@ class Test(TestCase):
 
     def test_simple(self):
         summary_df = pd.DataFrame(**{'index': ['Compound_242', 'Compound_267', 'Compound_286'],
-                                      'columns': ['min_pval', 'min_qval', 'min_pval_empirical', 'min_qval_empirical'],
-                                      'data': [[0.574065934065931, 0.43840579710145217, 0.03596403596403597,
-                                                0.03596403596403597],
-                                               [0.4329401908586914, 0.2667931374706272, 0.13386613386613386,
-                                                0.13386613386613386],
-                                               [0.19441846593258844, 7.981205729820185e-08, 0.02097902097902098,
-                                                0.6913086913086913]]})
+                                     'columns': ['best_pval', 'best_qval', 'best_pval_empirical', 'best_qval_empirical',
+                                                 'q*emp'],
+                                     'data': [[0.574065934065931, 0.43840579710145217, 0.03596403596403597,
+                                               0.03596403596403597, 0.00001],
+                                              [0.4329401908586914, 0.2667931374706272, 0.13386613386613386,
+                                               0.13386613386613386, 0.0001],
+                                              [0.19441846593258844, 7.981205729820185e-08, 0.02097902097902098,
+                                               0.6913086913086913, 0.001]]})
         traits_df = pd.DataFrame(**{
             'index': ['FAM10789-i1-1.1', 'FAM1079-i1-1.1', 'FAM10792-i1-1.1', 'FAM11142-i1-1.1', 'FAM11194-i1-1.1',
                       'FAM11199-i1-1.1', 'FAM11206-i1-1.1', 'FAM1233-i1-1.1', 'FAM1301-i1-1.1', 'FAM13493-i1-1.1'],
@@ -43,7 +46,7 @@ class Test(TestCase):
     def test_larger(self):
         self.fake_ns.traits_df = load_binary(get_path('new_ds', 'traits-lc-binary'), '\t')
         summary_df = pd.DataFrame(index=self.fake_ns.traits_df.columns)
-        for col in ['min_pval', 'min_qval', 'min_pval_empirical', 'min_qval_empirical']:
+        for col in ['best_pval', 'best_qval', 'best_pval_empirical', 'best_qval_empirical']:
             summary_df[col] = np.random.rand(1, len(self.fake_ns.traits_df.columns))[0]
         create_final_overview(summary_df=summary_df, ns=self.fake_ns)
 
@@ -56,7 +59,7 @@ class Test(TestCase):
             columns=[f'T{i}' for i in range(n_traits)],
         )
         summary_df = pd.DataFrame(index=self.fake_ns.traits_df.columns)
-        for col in ['min_pval', 'min_qval', 'min_pval_empirical', 'min_qval_empirical']:
+        for col in ['best_pval', 'best_qval', 'best_pval_empirical', 'best_qval_empirical']:
             summary_df[col] = np.random.rand(1, len(self.fake_ns.traits_df.columns))[0]
 
         create_final_overview(summary_df=summary_df, ns=self.fake_ns)

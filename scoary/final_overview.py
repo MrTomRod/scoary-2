@@ -122,6 +122,9 @@ def save_colorbars(pcms: [QuadMesh], cols: [str], out: str = None):
 
 
 def create_final_overview(summary_df: pd.DataFrame, ns: AnalyzeTraitNamespace, isolate_info_df: pd.DataFrame = None):
+    logger.debug('Adding preliminary summary.tsv...')
+    summary_df.to_csv(f'{ns.outdir}/summary.tsv', sep='\t')
+
     logger.info('Adding isolate info...')
     if isolate_info_df is not None:
         isolate_info_df.to_csv(f'{ns.outdir}/isolate_info.tsv', sep='\t')
@@ -129,9 +132,10 @@ def create_final_overview(summary_df: pd.DataFrame, ns: AnalyzeTraitNamespace, i
     logger.info('Copying files...')
     # copy files
     files = ['overview.html', 'trait.html', 'overview.css', 'trait.css', 'overview.js', 'trait.js']
-    for file in ['config.json', 'overview.html', 'trait.html', 'overview.css', 'trait.css', 'overview.js', 'trait.js']:
-        copy(src=f'{ROOT_DIR}/templates/{file}', dst=f'{ns.outdir}/{file}')
-    copy(src=f'{ROOT_DIR}/templates/favicon.ico', dst=f'{ns.outdir}/favicon.ico')
+    copy(src=f'{ROOT_DIR}/templates/overview.html', dst=f'{ns.outdir}/overview.html')
+    copy(src=f'{ROOT_DIR}/templates/trait.html', dst=f'{ns.outdir}/trait.html')
+    for file in ['config.json', 'trait.js', 'trait.css', 'overview.js', 'overview.css', 'favicon.ico']:
+        copy(src=f'{ROOT_DIR}/templates/{file}', dst=f'{ns.outdir}/app/{file}')
 
     summary_df_index = list(summary_df.index)
     if len(summary_df) > 1:
@@ -183,11 +187,15 @@ def create_final_overview(summary_df: pd.DataFrame, ns: AnalyzeTraitNamespace, i
         logger.info('Plotting colorbars...')
         # plot qvals
         cmaps = {
-            'min_qval': 'Spectral',
-            'min_pval_empirical': LinearSegmentedColormap.from_list(
+            'best_qval': 'Spectral',
+            'best_pval_empirical': LinearSegmentedColormap.from_list(
                 name='pval_emp_cbar',
                 colors=['#590d22', '#800f2f', '#a4133c', '#c9184a', '#ff4d6d',
-                        '#ff758f', '#ff8fa3', '#ffb3c1', '#ffccd5', '#fff0f3'])
+                        '#ff758f', '#ff8fa3', '#ffb3c1', '#ffccd5', '#fff0f3']),
+            'q*emp': LinearSegmentedColormap.from_list(
+                name='pval_emp_cbar',
+                colors=['#03045e', '#023e8a', '#0077b6', '#0096c7', '#00b4d8',
+                        '#48cae4', '#90e0ef', '#ade8f4', '#caf0f8']),
         }
         cols = [col for col in cmaps.keys() if col in summary_df.columns]
         pcms = plot_qvals(summary_df[cols], fig=fig, ax=ax_colorbar, cmaps=cmaps)
@@ -197,7 +205,7 @@ def create_final_overview(summary_df: pd.DataFrame, ns: AnalyzeTraitNamespace, i
         plt.close()
 
         # create color bar, save
-        save_colorbars(pcms, [c.removeprefix('min_') for c in cols], out=f'{ns.outdir}/overview_colorbar.svg')
+        save_colorbars(pcms, [c.removeprefix('best_') for c in cols], out=f'{ns.outdir}/overview_colorbar.svg')
 
     if ns.trait_info_df is not None:
         logger.info('Adding trait info...')
@@ -206,5 +214,6 @@ def create_final_overview(summary_df: pd.DataFrame, ns: AnalyzeTraitNamespace, i
             .reindex(summary_df_index)  # merging destroys index order
 
     # save summary_df, ensure order matches plot
+    logger.info('Adding summary.tsv...')
     summary_df.index.name = 'Trait'
     summary_df.to_csv(f'{ns.outdir}/summary.tsv', sep='\t')
