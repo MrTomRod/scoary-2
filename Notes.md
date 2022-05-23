@@ -12,7 +12,7 @@ SCOARY_VERSION="?.?.?"
 # build: will create files in dist/
 poetry build
 # test: install .whl file
-pip install dist/scoary_2-$SCOARY_VERSION-py3-none-any.whl
+pip install -U dist/scoary_2-$SCOARY_VERSION-py3-none-any.whl
 # upload
 poetry publish
 ```

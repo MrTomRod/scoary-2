@@ -45,7 +45,7 @@ def print_progress(
         n: int,
         message: str,
         start_time: datetime,
-        message_width: int = 30,
+        message_width: int = 40,
         default_width: int = 100,
         sep: str = ' | ',
         end: str = LINEBREAK_CHAR

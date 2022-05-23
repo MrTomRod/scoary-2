@@ -219,7 +219,7 @@ Must be 'kmeans', 'gaussian' or '<method>:<?cutoff>:<?covariance_type>:<?alterna
 def print_status(ns, trait, proc_id):
     with ns.lock:
         ns.counter.value += 1
-        message = trait if proc_id is None else f'CPU{proc_id} | {trait}'
+        message = trait if proc_id is None else f'P{proc_id} | {trait}'
         print_progress(
             ns.counter.value, len(ns.numeric_df.columns),
             message=message, start_time=ns.start_time, message_width=25

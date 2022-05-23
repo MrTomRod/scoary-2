@@ -1,7 +1,3 @@
-import time
-
-import pandas as pd
-
 from init_tests import *
 
 from scoary.scoary import *

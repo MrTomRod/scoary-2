@@ -13,8 +13,7 @@ def scoary(
         genes: str,
         traits: str,
         outdir: str,
-        multiple_testing_fisher: str = 'bonferroni:0.999',
-        multiple_testing_picking: str = 'bonferroni:0.999',
+        multiple_testing: str = 'bonferroni:0.999',
         gene_info: str = None,
         trait_info: str = None,
         isolate_info: str = None,
@@ -35,12 +34,9 @@ def scoary(
     :param genes: Path to gene presence/absence table: columns=isolates, rows=genes
     :param traits: Path to trait presence/absence table: columns=traits, rows=isolates
     :param outdir: Directory to place output files
-    :param multiple_testing_fisher: "method:cutoff" for filtering genes after Fisher's test, where cutoff is a number
+    :param multiple_testing: "method:cutoff" for filtering genes after Fisher's test, where cutoff is a number
      and method is one of [bonferroni, sidak, holm-sidak, holm, simes-hochberg, hommel, fdr_bh, fdr_by,  fdr_tsbh,
      fdr_tsbky]
-    :param multiple_testing_picking: "method:cutoff" for filtering genes after the pairwise comparisons algorithm, where
-     cutoff is a number and method is one of [bonferroni, sidak, holm-sidak, holm, simes-hochberg, hommel, fdr_bh,
-     fdr_by,  fdr_tsbh, fdr_tsbky]
     :param gene_info: Path to file that describes genes: columns=arbitrary properties, rows=genes
     :param trait_info: Path to file that describes traits: columns=arbitrary properties, rows=traits
     :param isolate_info: Path to file that describes isolates: columns=arbitrary properties, rows=isolates
@@ -60,15 +56,17 @@ def scoary(
     :param limit_traits: Limit the analysis to traits n to m. Useful for debugging. Example: "(0, 10)"
     """
     print('Welcome to Scoary 2!')
+
+    # parse input, create outdir
     trait_data_type = decode_unicode(trait_data_type)
     gene_data_type = decode_unicode(gene_data_type)
     outdir = setup_outdir(outdir, input=locals())
     setup_logging(logger, f'{outdir}/logs/scoary-2.log')
-
-    mt_f_method, mt_f_cutoff = parse_correction(multiple_testing_fisher)
-    mt_p_method, mt_p_cutoff = parse_correction(multiple_testing_picking)
-
+    mt_f_method, mt_f_cutoff = parse_correction(multiple_testing)
     assert n_permut == 0 or n_permut >= 100, f'{n_permut=} must be at least 100.'
+
+    # start
+    start_time = datetime.now()
 
     # load traits data  (numeric_df may be None)
     logger.info('Loading traits...')
@@ -156,8 +154,6 @@ def scoary(
         'all_labels': all_labels,
         'mt_f_method': mt_f_method,
         'mt_f_cutoff': mt_f_cutoff,
-        'mt_p_method': mt_p_method,
-        'mt_p_cutoff': mt_p_cutoff,
         'n_permut': n_permut,
         'all_label_to_gene': all_label_to_gene,
         'random_state': random_state,
@@ -193,6 +189,8 @@ def scoary(
     except NoTraitsLeftException as e:
         logger.info(str(e))
 
+    logger.debug(f'Took {datetime.now() - start_time}')
+
     print(CITATION)
 
 
@@ -200,10 +198,10 @@ def create_summary_df(trait_to_result: {str: [dict | str | None]}) -> pd.DataFra
     """
     Turn trait_to_result into a pandas.DataFrame. Example:
 
-            best_pval     best_qval best_pval_empirical best_qval_empirical
-    Trait_1  0.574066  4.384058e-01            0.035964            0.035964
-    Trait_2  0.432940  2.667931e-01            0.133866            0.133866
-    Trait_3  0.194418  7.981206e-08            0.020979            0.691309
+             best_fisher_p  best_fisher_q  best_empirical_p  best_fq*ep
+    Trait_1       0.574066   4.384058e-01          0.035964    0.035964
+    Trait_2       0.432940   2.667931e-01          0.133866    0.133866
+    Trait_3       0.194418   7.981206e-08          0.020979    0.691309
 
     :param trait_to_result: dictionary where keys are trait names and values are either dict|str|None
     :return: pandas.DataFrame

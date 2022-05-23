@@ -9,8 +9,8 @@
   },
   "table-config": {
     "sanitize-genes": true,
-    "default-hidden-cols": ["sensitivity", "specificity", "odds_ratio", "contrasting", "supporting", "opposing", "best", "worst", "pval"],
-    "float-cols": ["pval", "qval", "pval_empirical", "best", "worst"]
+    "default-hidden-cols": ["sensitivity", "specificity", "odds_ratio", "contrasting", "supporting", "opposing", "best", "worst", "fisher_p"],
+    "float-cols": ["fisher_p", "fisher_q", "empirical_p", "fq*ep", "best", "worst", "sensitivity", "specificity"]
   },
   "tree-config": {
     "type": "Hierarchical",

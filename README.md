@@ -74,14 +74,10 @@ POSITIONAL ARGUMENTS
         Directory to place output files
 
 FLAGS
-    --multiple_testing_fisher=MULTIPLE_TESTING_FISHER
+    --multiple_testing=MULTIPLE_TESTING
         Type: str
         Default: 'bonferroni:0.999'
         "method:cutoff" for filtering genes after Fisher's test, where cutoff is a number and method is one of [bonferroni, sidak, holm-sidak, holm, simes-hochberg, hommel, fdr_bh, fdr_by,  fdr_tsbh, fdr_tsbky]
-    --multiple_testing_picking=MULTIPLE_TESTING_PICKING
-        Type: str
-        Default: 'bonferroni:0.999'
-        "method:cutoff" for filtering genes after the pairwise comparisons algorithm, where cutoff is a number and method is one of [bonferroni, sidak, holm-sidak, holm, simes-hochberg, hommel, fdr_bh, fdr_by,  fdr_tsbh, fdr_tsbky]
     --gene_info=GENE_INFO
         Type: Optional[str]
         Default: None
@@ -192,7 +188,7 @@ print_tree(
 
 result = pick_single(tree, label_to_trait_a, label_to_trait_b, calc_pvals=True)
 pprint(result)
-# {'best_pval': 0.25,
+# {'best_fisher_p': 0.25,
 #  'max_contrasting_pairs': 3,
 #  'max_opposing_pairs': 0,
 #  'max_supporting_pairs': 3,
@@ -256,14 +252,14 @@ print(f'{max_contr=}\n{max_suppo=}\n{max_oppos=}\n{best=}\n{worst=}')
 # Todo:
 
 - [X] Binarize traits during multiprocessing
-- [X] Idea: min_qval * min_pval_empirical as new score
+- [X] Idea: min_qval * min_empirical_p as new score
 - [X] Improve messaging and logging
-- [ ] Remove multiple_testing_picking, more like Scoary 1 syntax?
+- [X] Remove multiple_testing_picking, more like Scoary 1 syntax?
 - [ ] Add links to `summary.tsv` / `coverage-matrix.tsv` / `result.tsv`
 - [ ] Benchmark?
-- [ ] Log runtime?
+- [X] Log runtime?
 - [ ] Refactoring
 - [X] `overview.html`: go to function, popover always left
-- [ ] `overview.html` & `trait.html`: set proper title, add favicon
+- [ ] `overview.html` & `trait.html`: ~~set proper title~~, add logo/favicon
 - [ ] `overview.html` & `trait.html`: link to table download
 - [ ] Improve `README.md`

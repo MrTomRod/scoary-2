@@ -314,8 +314,6 @@ class AnalyzeTraitNamespace(AbstractNamespace):
     all_labels: set
     mt_f_method: str
     mt_f_cutoff: float
-    mt_p_method: str
-    mt_p_cutoff: float
     n_permut: int
     all_label_to_gene: dict
     random_state: int

@@ -56,69 +56,45 @@ def add_clickable_patches(patch_names, fig: Figure, ax: Axes):
     fig.add_artist(pc)
 
 
-def plot_qvals(qvals: pd.DataFrame, fig: Figure, ax: Axes, cmaps: {str: str | Colormap}) -> [QuadMesh]:
+def plot_manhattan_like(qvals: pd.DataFrame, fig: Figure, ax: Axes, column_defs: {str: dict}) -> [QuadMesh]:
     # determine y intervals: [0, 10, 20, ...]
-    y = np.arange(start=0, stop=len(qvals.index) * 10 + 1, step=10)
+    y = np.arange(start=5, stop=len(qvals.index) * 10, step=10)
 
-    pcms = []
-    for i, (col, cmap) in enumerate(cmaps.items()):
+    ax.set_xlim(left=0)
+
+    max_x = 1.
+    for i, (col, def_) in enumerate(column_defs.items()):
         if col not in qvals.columns:
             continue
 
-        # determine x intervals: [0, 1] / [1, 2] / ...
-        x = np.array([i, i + 1])
-
         # create pcolormesh with logarithmic scale
-        pcm = ax.pcolormesh(
-            x, y, qvals[[col]],
-            cmap=cmap,
-            norm=LogNorm(vmin=qvals[col].min(), vmax=1.)
-        )
-        pcms.append(pcm)
+        x = -np.log10(qvals[col])
 
-    # add ticks
+        max_x = max(max_x, x.max())
+
+        ax.scatter(
+            x, y,
+            marker=def_['marker'],
+            color=def_['color']
+        )
+
+    # add y ticks and labels
+    ax.yaxis.tick_right()
     ytick_locations = np.arange(start=5, stop=len(qvals) * 10, step=10)
     ax.set_yticks(ytick_locations, qvals.index)
-    ax.yaxis.tick_right()
     ax.tick_params(
         axis='both', which='both',
         bottom=False, top=False, left=False, right=False,
         labelbottom=False
     )
 
+    # add grid
+    ax.set_axisbelow(True)
+    ax.set_xticks(ticks=np.arange(0, max_x + 1, 1), minor=True)
+    ax.grid(visible=True, which='both', axis='x', linestyle='dashed')
+
     # add shape on top of colormesh and ticks that can be made clickable
     add_clickable_patches(qvals.index, fig, ax)
-
-    # return pcolormesh object, can be used to plot colorbar
-    return pcms
-
-
-def save_colorbars(pcms: [QuadMesh], cols: [str], out: str = None):
-    fig = plt.figure(figsize=(len(pcms), 4), dpi=100)
-    gs = fig.add_gridspec(
-        nrows=1, ncols=len(pcms),
-        left=0.05, right=0.99 - (0.5 / len(pcms)),
-        bottom=0.01, top=0.93,
-        wspace=1.5,
-    )
-
-    plt.rcParams['axes.titley'] = 1.05
-    for i, pcm in enumerate(pcms):
-        # add title on separate axis
-        ax_title = fig.add_subplot(gs[i])
-        ax_title.grid(False)
-        plt.axis('off')
-        ax_title.text(x=0.8, y=1.02, s=cols[i], fontsize=8, fontweight='bold', ha='center')
-
-        # add colorbar
-        ax_cbar = fig.add_subplot(gs[i])
-        fig.colorbar(pcm, ax=None, cax=ax_cbar, extend='max')
-
-    if out is None:
-        plt.show()
-    else:
-        plt.savefig(out, format='svg')
-    plt.close()
 
 
 def create_final_overview(summary_df: pd.DataFrame, ns: AnalyzeTraitNamespace, isolate_info_df: pd.DataFrame = None):
@@ -162,12 +138,12 @@ def create_final_overview(summary_df: pd.DataFrame, ns: AnalyzeTraitNamespace, i
 
         # create matplotlib figure
         plt.close()
-        fig = plt.figure(figsize=(7, total_height), dpi=4)
+        fig = plt.figure(figsize=(8, total_height), dpi=4)
         # dpi=4 avoids this error message:
         # ValueError: Image size of 700x165660 pixels is too large. It must be less than 2^16 in each direction.
         # This allows for dendrograms with at least 20'000 traits
         gs = fig.add_gridspec(
-            nrows=1, ncols=2, width_ratios=(7, 1),
+            nrows=1, ncols=2, width_ratios=(2, 1),
             left=0.05, right=0.6, bottom=whitespace_rel * 2, top=1 - whitespace_rel,
             wspace=0, hspace=0
         )
@@ -184,28 +160,17 @@ def create_final_overview(summary_df: pd.DataFrame, ns: AnalyzeTraitNamespace, i
         summary_df_index = dendrogram_params['ivl'][::-1]
         summary_df = summary_df.reindex(summary_df_index)
 
-        logger.info('Plotting colorbars...')
-        # plot qvals
-        cmaps = {
-            'best_qval': 'Spectral',
-            'best_pval_empirical': LinearSegmentedColormap.from_list(
-                name='pval_emp_cbar',
-                colors=['#590d22', '#800f2f', '#a4133c', '#c9184a', '#ff4d6d',
-                        '#ff758f', '#ff8fa3', '#ffb3c1', '#ffccd5', '#fff0f3']),
-            'q*emp': LinearSegmentedColormap.from_list(
-                name='pval_emp_cbar',
-                colors=['#03045e', '#023e8a', '#0077b6', '#0096c7', '#00b4d8',
-                        '#48cae4', '#90e0ef', '#ade8f4', '#caf0f8']),
+        column_defs = {
+            'best_fisher_q': {'marker': '$f$', 'color': 'tab:green'},
+            'best_empirical_p': {'marker': '$e$', 'color': 'tab:purple'},
+            'best_fq*ep': {'marker': '*', 'color': 'tab:red'}
         }
-        cols = [col for col in cmaps.keys() if col in summary_df.columns]
-        pcms = plot_qvals(summary_df[cols], fig=fig, ax=ax_colorbar, cmaps=cmaps)
+        cols = [col for col in column_defs.keys() if col in summary_df.columns]
+        plot_manhattan_like(summary_df[cols], fig=fig, ax=ax_colorbar, column_defs=column_defs)
 
         # save plot
         plt.savefig(f'{ns.outdir}/overview_plot.svg', format='svg')
         plt.close()
-
-        # create color bar, save
-        save_colorbars(pcms, [c.removeprefix('best_') for c in cols], out=f'{ns.outdir}/overview_colorbar.svg')
 
     if ns.trait_info_df is not None:
         logger.info('Adding trait info...')

@@ -4,6 +4,15 @@ from init_tests import *
 
 from scoary.scoary import *
 
+RESTRICT_TO = 'FAM14177-p1-1.1,FAM14184-i1-1.1,FAM14193-i1-1.1,FAM14197-i1-1.1,FAM14217-p1-1.1,FAM14221-p1-1.1,' \
+              'FAM14222-p1-1.1,FAM1414-i1-1.1,FAM15061-i1-1.1,FAM15078-i1-1.1,FAM15113-i1-1.1,FAM15170-i1-1.1,' \
+              'FAM15190-i1-1.1,FAM15192-i1-1.1,FAM15300-i1-1.1,FAM15333-i1-1.1,FAM15346-i1-1.1,FAM15347-i1-1.1,' \
+              'FAM15381-i1-1.1,FAM15407-i1-1.1,FAM19015-i1-1.1,FAM19016-i1-1.1,FAM19020-i1-1.1,FAM19022-i1-1.1,' \
+              'FAM19023-i1-1.1,FAM19024-p1-1.1,FAM19025-p1-1.1,FAM19030-i2-1.1,FAM19031-i2-1.1,FAM19034-i1-1.1,' \
+              'FAM22019-i1-1.1,FAM22020-i1-1.1,FAM22021-p1-1.1,FAM23848-i1-1.1,FAM23852-i1-1.1,FAM23853-i1-1.1,' \
+              'FAM23855-i1-1.1,FAM23864-i1-1.1,FAM23867-i1-1.1,FAM23868-i1-1.1,FAM23869-i1-1.1,FAM23870-i1-1.1,' \
+              'FAM23877-p1-1.1,FAM24252-i1-1.1'
+
 
 class TestScoary(TestCase):
     def setUp(self) -> None:
@@ -37,7 +46,7 @@ class TestScoary(TestCase):
             trait_data_type='binary:\t',
             n_permut=200,
             # ignore='Starter-only-5A,FAMIX,Starter-only-10,Starter-only-7,mixture',
-            restrict_to='FAM1414-i1-1.1,FAM14177-p1-1.1,FAM14184-i1-1.1,FAM14193-i1-1.1,FAM14197-i1-1.1,FAM14217-p1-1.1,FAM14221-p1-1.1,FAM14222-p1-1.1,FAM15061-i1-1.1,FAM15078-i1-1.1,FAM15113-i1-1.1,FAM15170-i1-1.1,FAM15190-i1-1.1,FAM15192-i1-1.1,FAM15300-i1-1.1,FAM15333-i1-1.1,FAM15346-i1-1.1,FAM15347-i1-1.1,FAM15381-i1-1.1,FAM15407-i1-1.1,FAM19015-i1-1.1,FAM19016-i1-1.1,FAM19020-i1-1.1,FAM19022-i1-1.1,FAM19023-i1-1.1,FAM19024-p1-1.1,FAM19025-p1-1.1,FAM19030-i2-1.1,FAM19031-i2-1.1,FAM19034-i1-1.1,FAM22019-i1-1.1,FAM22020-i1-1.1,FAM22021-p1-1.1,FAM23848-i1-1.1,FAM23852-i1-1.1,FAM23853-i1-1.1,FAM23855-i1-1.1,FAM23864-i1-1.1,FAM23867-i1-1.1,FAM23868-i1-1.1,FAM23869-i1-1.1,FAM23870-i1-1.1,FAM23877-p1-1.1,FAM24252-i1-1.1',
+            restrict_to=RESTRICT_TO,
             random_state=42,
             n_cpus=7,
             outdir=self.tempdir,
@@ -55,15 +64,7 @@ class TestScoary(TestCase):
             isolate_info=get_path('new_ds', 'isolate-meta'),
             n_permut=200,
             # ignore='Starter-only-5A,FAMIX,Starter-only-10,Starter-only-7,mixture',
-            restrict_to='FAM1414-i1-1.1,FAM14177-p1-1.1,FAM14184-i1-1.1,FAM14193-i1-1.1,FAM14197-i1-1.1,'
-                        'FAM14217-p1-1.1,FAM14221-p1-1.1,FAM14222-p1-1.1,FAM15061-i1-1.1,FAM15078-i1-1.1,'
-                        'FAM15113-i1-1.1,FAM15170-i1-1.1,FAM15190-i1-1.1,FAM15192-i1-1.1,FAM15300-i1-1.1,'
-                        'FAM15333-i1-1.1,FAM15346-i1-1.1,FAM15347-i1-1.1,FAM15381-i1-1.1,FAM15407-i1-1.1,'
-                        'FAM19015-i1-1.1,FAM19016-i1-1.1,FAM19020-i1-1.1,FAM19022-i1-1.1,FAM19023-i1-1.1,'
-                        'FAM19024-p1-1.1,FAM19025-p1-1.1,FAM19030-i2-1.1,FAM19031-i2-1.1,FAM19034-i1-1.1,'
-                        'FAM22019-i1-1.1,FAM22020-i1-1.1,FAM22021-p1-1.1,FAM23848-i1-1.1,FAM23852-i1-1.1,'
-                        'FAM23853-i1-1.1,FAM23855-i1-1.1,FAM23864-i1-1.1,FAM23867-i1-1.1,FAM23868-i1-1.1,'
-                        'FAM23869-i1-1.1,FAM23870-i1-1.1,FAM23877-p1-1.1,FAM24252-i1-1.1',
+            restrict_to=RESTRICT_TO,
             random_state=42,
             n_cpus=7,
             outdir=self.tempdir,
@@ -73,7 +74,7 @@ class TestScoary(TestCase):
 
     def test_scoary_real(self):
         scoary(
-            # multiple_testing_fisher='bonferroni:0.01',
+            multiple_testing='bonferroni:0.1',
             genes=get_path('full_ds', 'genes'),
             gene_info=get_path('full_ds', 'gene-info'),
             gene_data_type='gene-list:\t',
@@ -84,8 +85,9 @@ class TestScoary(TestCase):
             n_permut=300,
             random_state=42,
             n_cpus=8,
-            restrict_to='FAM14177-p1-1.1,FAM14184-i1-1.1,FAM14193-i1-1.1,FAM14197-i1-1.1,FAM14217-p1-1.1,FAM14221-p1-1.1,FAM14222-p1-1.1,FAM1414-i1-1.1,FAM15061-i1-1.1,FAM15078-i1-1.1,FAM15113-i1-1.1,FAM15170-i1-1.1,FAM15190-i1-1.1,FAM15192-i1-1.1,FAM15300-i1-1.1,FAM15333-i1-1.1,FAM15346-i1-1.1,FAM15347-i1-1.1,FAM15381-i1-1.1,FAM15407-i1-1.1,FAM19015-i1-1.1,FAM19016-i1-1.1,FAM19020-i1-1.1,FAM19022-i1-1.1,FAM19023-i1-1.1,FAM19024-p1-1.1,FAM19025-p1-1.1,FAM19030-i2-1.1,FAM19031-i2-1.1,FAM19034-i1-1.1,FAM22019-i1-1.1,FAM22020-i1-1.1,FAM22021-p1-1.1,FAM23848-i1-1.1,FAM23852-i1-1.1,FAM23853-i1-1.1,FAM23855-i1-1.1,FAM23864-i1-1.1,FAM23867-i1-1.1,FAM23868-i1-1.1,FAM23869-i1-1.1,FAM23870-i1-1.1,FAM23877-p1-1.1,FAM24252-i1-1.1',
-            limit_traits=(2330, 2340),
+            restrict_to=RESTRICT_TO,
+            limit_traits=(2000, 2400),
+            # limit_traits=(2330, 2340),
             outdir=self.tempdir,
         )
 

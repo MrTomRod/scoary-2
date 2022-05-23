@@ -2,7 +2,6 @@ import os
 import logging
 from collections import defaultdict
 import json
-import numpy as np
 import pandas as pd
 from statsmodels.stats.multitest import multipletests
 from fast_fisher.fast_fisher_numba import odds_ratio, test1t as fisher_exact_two_tailed
@@ -48,7 +47,7 @@ def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) ->
     logger.debug(f'Analyzing {trait=}')
     with ns.lock:
         ns.counter.value += 1
-        message = trait if proc_id is None else f'CPU{proc_id} | {trait}'
+        message = trait if proc_id is None else f'P{proc_id} | {trait}'
         print_progress(
             ns.counter.value, len(ns.traits_df.columns),
             message=message, start_time=ns.start_time, message_width=25
@@ -70,7 +69,7 @@ def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) ->
     test_df = create_test_df(result_df)
     test_df = add_odds_ratio(test_df)
     test_df = perform_multiple_testing_correction(
-        test_df, col='pval',
+        test_df, col='fisher_p',
         method=ns.mt_f_method, cutoff=ns.mt_f_cutoff, is_sorted=True
     )
 
@@ -87,8 +86,8 @@ def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) ->
     result_df.attrs.update(test_df.attrs)
 
     if not ns.pairwise:
-        result_df.attrs['best_pval'] = result_df['pval'].min()
-        result_df.attrs['best_qval'] = result_df['qval'].min()
+        result_df.attrs['best_fisher_p'] = result_df['fisher_p'].min()
+        result_df.attrs['best_fisher_q'] = result_df['fisher_q'].min()
     else:
         result_df = pair_picking(
             result_df,
@@ -98,7 +97,7 @@ def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) ->
         )
 
         if ns.n_permut:
-            result_df['pval_empirical'] = permute_picking(
+            result_df['empirical_p'] = permute_picking(
                 trait=trait,
                 result_df=result_df,
                 all_label_to_gene=ns.all_label_to_gene,
@@ -108,18 +107,13 @@ def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) ->
                 random_state=ns.random_state
             )
 
-            result_df['q*emp'] = result_df['qval'] * result_df['pval_empirical']
-            result_df.sort_values(by='q*emp', inplace=True, ascending=False)
+            result_df['fq*ep'] = result_df['fisher_q'] * result_df['empirical_p']
+            result_df.sort_values(by='fq*ep', inplace=True)
 
-            result_df.attrs['best_pval'] = result_df['pval'][0]
-            result_df.attrs['best_qval'] = result_df['qval'][0]
-            result_df.attrs['best_pval_empirical'] = result_df['pval_empirical'][0]
-            result_df.attrs['q*emp'] = result_df['q*emp'][0]
-
-            if len(result_df) == 0:
-                logging.info(f'Found 0 genes for {trait=} '
-                             f'after {ns.mt_p_method}:{ns.mt_p_cutoff} filtration')
-                return None
+            result_df.attrs['best_fisher_p'] = result_df['fisher_p'][0]
+            result_df.attrs['best_fisher_q'] = result_df['fisher_q'][0]
+            result_df.attrs['best_empirical_p'] = result_df['empirical_p'][0]
+            result_df.attrs['best_fq*ep'] = result_df['fq*ep'][0]
 
     save_result_df(trait, ns, result_df)
 
@@ -151,7 +145,7 @@ def save_result_df(trait: str, ns: AnalyzeTraitNamespace, result_df: pd.DataFram
                 additional_columns + \
                 ['g+t+', 'g+t-', 'g-t+', 'g-t-',
                  'sensitivity', 'specificity', 'odds_ratio',
-                 'pval', 'qval', 'pval_empirical', 'q*emp',
+                 'fisher_p', 'fisher_q', 'empirical_p', 'fq*ep',
                  'contrasting', 'supporting', 'opposing', 'best', 'worst']
     result_df = result_df[[col for col in col_order if col in result_df.columns]]
 
@@ -184,6 +178,7 @@ def save_result_df(trait: str, ns: AnalyzeTraitNamespace, result_df: pd.DataFram
 
 
 def save_duplicated_result(trait: str, ns: AnalyzeTraitNamespace):
+    # todo: might create symlinks traits that didn't make it through filtering!
     os.makedirs(f'{ns.outdir}/traits/{trait}')
 
     # use data from previous duplicate
@@ -247,10 +242,10 @@ def init_result_df(genes_bool_df: pd.DataFrame, label_to_trait: dict[str:bool]) 
 
 def create_test_df(result_df: pd.DataFrame, sort=True) -> pd.DataFrame:
     """
-    Create test_df with index=__contingency_id__ and columns=[pval]
+    Create test_df with index=__contingency_id__ and columns=[fisher_p]
 
     Reduce to unique contingency tables
-    Add column: pval_fisher
+    Add column: fisher_p
 
     :param result_df: DataFrame with column '__contingency_table__'
     :param sort: whether to sort the DataFrame by pvalue
@@ -266,14 +261,14 @@ def create_test_df(result_df: pd.DataFrame, sort=True) -> pd.DataFrame:
     table_to_pval = {table: fisher_exact_two_tailed(*table) for table in test_df.__fisher_unique_table__.unique()}
 
     # add Fisher's exact test
-    test_df['pval'] = test_df.__fisher_unique_table__.apply(lambda table: table_to_pval[table])
+    test_df['fisher_p'] = test_df.__fisher_unique_table__.apply(lambda table: table_to_pval[table])
 
     # remove fisher_identifier
     test_df.drop('__fisher_unique_table__', axis=1, inplace=True)
 
     if sort:
-        # sort test_df by pval
-        test_df.sort_values(by='pval', inplace=True)
+        # sort test_df by pvalue
+        test_df.sort_values(by='fisher_p', inplace=True)
 
     return test_df
 
@@ -291,8 +286,8 @@ def perform_multiple_testing_correction(
         col: str,
         is_sorted=True
 ) -> (float, pd.DataFrame):
-    assert 'pval' in col
-    new_col = col.replace('pval', 'qval')
+    assert 'fisher_p' in col
+    new_col = col.replace('fisher_p', 'fisher_q')
     reject, qval, alphac_sidak, alphac_bonf = multipletests(
         pvals=test_df[col],
         alpha=cutoff,

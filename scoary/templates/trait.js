@@ -225,7 +225,7 @@ const tablePromise = configPromise.then(config => {
         })
         tableData.index = tableData['data'].map(col => col['Gene'])
         tableData.orderCol = tableData.meta.fields.indexOf(
-            tableData.meta.fields.includes('q*emp') ? 'q*emp' : 'qval')
+            tableData.meta.fields.includes('fq*ep') ? 'fq*ep' : 'fisher_q')
         tableData.order = 'asc'
         tableData.hiddenCols = tableConfig['default-hidden-cols'].map(col => tableData.meta.fields.indexOf(col))
 
