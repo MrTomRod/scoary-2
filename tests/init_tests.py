@@ -22,6 +22,7 @@ DATA = {
     },
     'tetracycline': {
         'genes': 'Gene_presence_absence.csv',
+        'gene-info': 'gene-info.tsv',
         'traits': 'Tetracycline_resistance.csv',
         'traits-numeric': 'Tetracycline_resistance_numeric.csv',
         'restrict_to': 'Restrict_to.csv',

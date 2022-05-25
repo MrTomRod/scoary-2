@@ -226,7 +226,7 @@ def load_info_file(
     info_df = pd.read_csv(info_file, index_col=0, delimiter='\t')
 
     assert info_df.index.name == merge_col, \
-        f'The file {info_file} is improperly formatted: The first column must be named "{merge_col}".' \
+        f'The file {info_file} is improperly formatted: The first column must be named "{merge_col}". ' \
         f'Current name: {info_df.index.name}. Remaining columns: {info_df.columns.tolist()}'
 
     if expected_overlap_set is not None:

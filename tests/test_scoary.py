@@ -38,6 +38,16 @@ class TestScoary(TestCase):
             outdir=self.tempdir
         )
 
+    def test_scoary_gene_info(self):
+        scoary(
+            genes=get_path('tetracycline', 'genes'),
+            gene_info=get_path('tetracycline', 'gene-info'),
+            traits=get_path('tetracycline', 'traits'),
+            n_permut=1000,
+            n_cpus=1,
+            outdir=self.tempdir
+        )
+
     def test_scoary_long(self):
         scoary(
             genes=get_path('new_ds', 'genes-hog'),
@@ -69,6 +79,24 @@ class TestScoary(TestCase):
             n_cpus=7,
             outdir=self.tempdir,
             limit_traits=(0, 20),
+            pairwise=False
+        )
+
+    def test_scoary_gauss_kmeans(self):
+        scoary(
+            genes=get_path('new_ds', 'genes-hog'),
+            gene_info=get_path('new_ds', 'genes-hog-info'),
+            gene_data_type='gene-list:2',
+            traits=get_path('new_ds', 'traits-lc'),
+            trait_data_type=f'gaussian:kmeans:\t',
+            trait_info=get_path('new_ds', 'traits-lc-meta'),
+            isolate_info=get_path('new_ds', 'isolate-meta'),
+            n_permut=200,
+            restrict_to=RESTRICT_TO,
+            random_state=42,
+            n_cpus=7,
+            outdir=self.tempdir,
+            limit_traits=(0, 100),
             pairwise=False
         )
 

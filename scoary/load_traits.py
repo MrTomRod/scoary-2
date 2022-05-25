@@ -38,6 +38,7 @@ def filter_df(df: pd.DataFrame, restrict_to: str = None, ignore: str = None) -> 
 
 def load_binary(traits: str, delimiter: str, restrict_to: str = None, ignore: str = None,
                 limit_traits: (int, int) = None):
+    logger.debug(f'Loading binary traits: {traits=} {delimiter=}')
     dtypes = defaultdict(lambda: int)
     dtypes["index_column"] = str
     traits_df = pd.read_csv(traits, delimiter=delimiter, index_col=0, dtype=dtypes, na_values=STR_NA_VALUES)
@@ -71,6 +72,7 @@ def load_binary(traits: str, delimiter: str, restrict_to: str = None, ignore: st
 
 def load_numeric(traits: str, delimiter: str, restrict_to: str = None, ignore: str = None,
                  limit_traits: (int, int) = None):
+    logger.debug(f'Loading numeric traits: {traits=} {delimiter=}')
     dtypes = defaultdict(lambda: float)
     dtypes["index_column"] = str
     numeric_df = pd.read_csv(traits, delimiter=delimiter, index_col=0, dtype=dtypes, na_values=STR_NA_VALUES)
@@ -236,7 +238,7 @@ def fn_km(kmeans, gm, ns, trait, proc_id, container_binarized_traits, container_
 
 def fn_gm(kmeans, gm, ns, trait, proc_id, container_binarized_traits, container_binarization_info, extract_covariances):
     print_status(ns, trait, proc_id)
-    logger.debug(f'Binarizing {trait=} using gaussian mixture')
+    logger.debug(f'Binarizing {trait=} using gaussian mixture.')
     try:
         binarized_data, metadata = apply_gm(gm, ns.numeric_df[trait], certainty_cutoff=ns.cutoff,
                                             extract_covariances=extract_covariances)
@@ -332,6 +334,8 @@ def binarize(
     else:
         from .init_multiprocessing import init, mp
         mgr, ns, counter, lock = init()
+
+    logger.info(f'Binarizing traits: {method=} {alternative=} {cutoff=} {covariance_type=} {n_cpus=} {random_state=}')
 
     ns = BinarizeTraitNamespace.create_namespace(ns, {
         'start_time': datetime.now(),

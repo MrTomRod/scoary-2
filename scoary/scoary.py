@@ -47,7 +47,8 @@ def scoary(
      Low p-values suggest that the effect is not merely lineage-specific.
     :param restrict_to: Comma-separated list of isolates to which to restrict this analysis
     :param ignore: Comma-separated list of isolates to be ignored for this analysis
-    :param n_cpus: Number of CPUs that should be used
+    :param n_cpus: Number of CPUs that should be used. There is overhead in multiprocessing, so if the dataset is
+    small, use n_cpus=1
     :param trait_data_type: "<method>:<?cutoff>:<?covariance_type>:<?alternative>:<?delimiter>" How to read the traits
      table. Example: "gene-list:\\t" for OrthoFinder N0.tsv table
     :param gene_data_type: "<data_type>:<?delimiter>" How to read the genes table. Example: "gene-list:\\t" for
