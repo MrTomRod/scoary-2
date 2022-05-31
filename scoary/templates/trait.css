@@ -101,3 +101,7 @@ code {
 .popover-header {
     white-space: nowrap;
 }
+
+.main-svg {
+    background: unset !important;
+}
