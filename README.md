@@ -6,6 +6,7 @@ association per trait. The results can be explored interactively with a simple, 
 
 # Wiki
 
+- [Home](https://github.com/MrTomRod/scoary-2/wiki/Home)
 - [Installation](https://github.com/MrTomRod/scoary-2/wiki/Installation)
 - [Usage](https://github.com/MrTomRod/scoary-2/wiki/Usage)
 - [Input](https://github.com/MrTomRod/scoary-2/wiki/Input)

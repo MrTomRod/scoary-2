@@ -61,6 +61,7 @@ class TestScoary(TestCase):
             n_cpus=7,
             outdir=self.tempdir,
             limit_traits=(0, 20),
+            max_genes=100,
         )
 
     def test_scoary_long_numeric(self):
@@ -97,7 +98,7 @@ class TestScoary(TestCase):
             n_cpus=7,
             outdir=self.tempdir,
             limit_traits=(0, 100),
-            pairwise=False
+            # pairwise=False
         )
 
     def test_scoary_real(self):
@@ -110,12 +111,16 @@ class TestScoary(TestCase):
             trait_data_type=f'gaussian:skip:\t:tied',  # {'tied', 'full', 'diag', 'spherical'}
             trait_info=get_path('full_ds', 'trait-info'),
             isolate_info=get_path('full_ds', 'isolate-info'),
-            n_permut=300,
+            n_permut=600,
             random_state=42,
             n_cpus=8,
-            restrict_to=RESTRICT_TO,
-            limit_traits=(2000, 2400),
+            n_cpus_binarization=1,
+            # restrict_to=RESTRICT_TO,
+            max_genes=50,
+            # limit_traits=(12377, 12378),
+            # limit_traits=(2000, 2400),
             # limit_traits=(2330, 2340),
+            worst_cutoff=0.1,
             outdir=self.tempdir,
         )
 

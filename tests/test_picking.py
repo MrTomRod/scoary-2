@@ -280,7 +280,7 @@ class Test(TestCase):
             scoary_tree = ScoaryTree.from_newick(newick)
             # scoary_tree = ScoaryTree.from_presence_absence(genes_df)
 
-            result_df = init_result_df(genes_df, label_to_trait)
+            result_df = init_result_df(genes_df, pd.Series(label_to_trait, dtype='boolean'))
             result_df = pair_picking(result_df, genes_df, scoary_tree, label_to_trait)
 
             assert set(scoary_tree.labels()) == set(traits_df.index)

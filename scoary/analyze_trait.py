@@ -11,7 +11,7 @@ from .ScoaryTree import ScoaryTree
 from .picking import pick
 from .permutations import permute_picking
 from .progressbar import print_progress
-from .utils import setup_logging, AnalyzeTraitNamespace, get_label_to_trait, fisher_id, grasp_namespace
+from .utils import setup_logging, AnalyzeTraitNamespace, fisher_id, grasp_namespace
 
 logger = logging.getLogger('scoary.analyze_trait')
 
@@ -33,14 +33,18 @@ def worker(
     new_ns = grasp_namespace(AnalyzeTraitNamespace, ns)
     del ns
 
+    local_result_container = {}
+
     while True:
         try:
             trait = q.get_nowait()
         except Empty:
             break  # completely done
 
-        result_container[trait] = analyze_trait(trait, new_ns, proc_id)
+        local_result_container[trait] = analyze_trait(trait, new_ns, proc_id)
         q.task_done()
+
+    result_container.update(local_result_container)
 
 
 def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) -> dict | str | None:
@@ -53,19 +57,20 @@ def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) ->
             message=message, start_time=ns.start_time, message_width=25
         )
 
-        if trait in ns.duplication_df:
-            logger.debug(f'Duplicated trait: {trait} -> {ns.duplication_df[trait]}')
-            save_duplicated_result(trait, ns)
-            return ns.duplication_df[trait]
+    if trait in ns.duplication_df:
+        logger.debug(f'Duplicated trait: {trait} -> {ns.duplication_df[trait]}')
+        save_duplicated_result(trait, ns)
+        return ns.duplication_df[trait]
 
-    label_to_trait = get_label_to_trait(ns.traits_df[trait])
+    trait_series = ns.traits_df[trait].dropna()
+    labels = set(trait_series.index)
 
-    if ns.all_labels == set(label_to_trait):
+    if ns.all_labels == labels:
         pruned_tree = ns.tree
     else:
-        pruned_tree = ns.tree.prune(labels=label_to_trait)
+        pruned_tree = ns.tree.prune(labels=labels)
 
-    result_df = init_result_df(ns.genes_bool_df, label_to_trait)
+    result_df = init_result_df(ns.genes_bool_df, trait_series)
     test_df = create_test_df(result_df)
     test_df = add_odds_ratio(test_df)
     test_df = perform_multiple_testing_correction(
@@ -74,8 +79,8 @@ def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) ->
     )
 
     if len(test_df) == 0:
-        logging.info(f'Found 0 genes for {trait=} '
-                     f'after {ns.mt_f_method}:{ns.mt_f_cutoff} filtration')
+        logger.info(f'Found 0 genes for {trait=} '
+                    f'after {ns.mt_f_method}:{ns.mt_f_cutoff} filtration')
         return None
 
     result_df = pd.merge(
@@ -93,18 +98,31 @@ def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) ->
             result_df,
             significant_genes_df=ns.genes_bool_df.loc[result_df.Gene],
             tree=pruned_tree,
-            label_to_trait=label_to_trait
+            label_to_trait=trait_series
         )
+
+        if ns.worst_cutoff:
+            if not (result_df['worst'] <= ns.worst_cutoff).any():
+                logger.info(f'Found 0 genes for {trait=} '
+                            f'after worst_cutoff={ns.worst_cutoff} filtration')
+                return None
+
+        if ns.max_genes:
+            if len(result_df) > ns.max_genes:
+                logger.info(f'Found too {len(result_df)} genes for {trait=} '
+                            f'keeping only {ns.max_genes} with best Fisher\'s test.')
+                result_df.attrs['max_genes'] = f'Trimmed {len(result_df)} genes to {ns.max_genes}.'
+                result_df = result_df.iloc[:ns.max_genes]
 
         if ns.n_permut:
             result_df['empirical_p'] = permute_picking(
                 trait=trait,
                 result_df=result_df,
-                all_label_to_gene=ns.all_label_to_gene,
                 tree=pruned_tree,
-                label_to_trait=label_to_trait,
+                label_to_trait=trait_series,
                 n_permut=ns.n_permut,
-                random_state=ns.random_state
+                random_state=ns.random_state,
+                genes_bool_df=ns.genes_bool_df
             )
 
             result_df['fq*ep'] = result_df['fisher_q'] * result_df['empirical_p']
@@ -193,21 +211,23 @@ def save_duplicated_result(trait: str, ns: AnalyzeTraitNamespace):
         _save_trait(trait, ns)
 
 
-def init_result_df(genes_bool_df: pd.DataFrame, label_to_trait: dict[str:bool]) -> pd.DataFrame:
+def init_result_df(genes_bool_df: pd.DataFrame, trait_series: pd.Series) -> pd.DataFrame:
     """
     Create result_df with index=strains and columns=[g+t+, g+t-, g-t+, g-t-, __contingency_table__]
 
     :param genes_bool_df: DataFrame (dtype: bool); columns: strains; rows: genes
-    :param trait_pos: strains that have the trait
-    :param trait_neg: strains that lack the trait
+    :param trait_series: Boolean Series that indicates which isolates have the trait
     :return: result_df (DataFrame); columns: ['g+t+', 'g+t-', 'g-t+', 'g-t-', '__contingency_table__]; index: strains
     """
+    assert trait_series.dtype == 'boolean', f'trait_series must be boolean pandas.Series!'
+    assert not trait_series.hasnans, f'trait_series may not contain NANs!'
     # Preparation
-    trait_pos = [l for l, t in label_to_trait.items() if t]
-    trait_neg = [l for l, t in label_to_trait.items() if not t]
+    trait_pos = trait_series.index[trait_series]
+    trait_neg = trait_series.index[~trait_series]
     n_pos = len(trait_pos)
     n_neg = len(trait_neg)
     n_tot = n_pos + n_neg
+    assert n_tot == len(trait_series)
 
     # create result_df
     result_df = pd.DataFrame(index=genes_bool_df.index)
@@ -221,18 +241,9 @@ def init_result_df(genes_bool_df: pd.DataFrame, label_to_trait: dict[str:bool]) 
     result_df = result_df[(gene_sum != 0) & (gene_sum != n_tot)]
 
     # Add contingency table, sensitivity and specificity
-    sensitivity_fn = (lambda row: row['g+t+'] / n_pos * 100) if trait_pos else (lambda row: 0.)
-    specificity_fn = (lambda row: row['g-t-'] / n_neg * 100) if trait_neg else (lambda row: 0.)
-
-    def add_cols(row: pd.Series):
-        return (
-            tuple([row['g+t+'], row['g+t-'], row['g-t+'], row['g-t-']]),  # contingency table
-            sensitivity_fn(row),
-            specificity_fn(row),
-        )
-
-    result_df[['__contingency_table__', 'sensitivity', 'specificity']] = result_df.apply(
-        func=add_cols, axis=1, result_type='expand')
+    result_df['__contingency_table__'] = [tuple(x) for x in result_df[['g+t+', 'g+t-', 'g-t+', 'g-t-']].to_numpy()]
+    result_df['sensitivity'] = (result_df['g+t+'] / n_pos * 100) if n_pos else 0
+    result_df['specificity'] = (result_df['g-t-'] / n_neg * 100) if n_neg else 0
 
     # Reset index so that Gene is its own column
     result_df.reset_index(inplace=True)
@@ -300,7 +311,7 @@ def perform_multiple_testing_correction(
 
 
 def pair_picking(result_df: pd.DataFrame, significant_genes_df: pd.DataFrame, tree: ScoaryTree,
-                 label_to_trait: {str: bool}) -> pd.DataFrame:
+                 label_to_trait: pd.Series | dict) -> pd.DataFrame:
     """
     Required rows:
     - Gene

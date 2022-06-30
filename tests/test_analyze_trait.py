@@ -1,5 +1,5 @@
 from init_tests import *
-from scoary.utils import get_label_to_trait, get_all_label_to_gene
+from datetime import datetime
 from scoary.ScoaryTree import ScoaryTree
 from scoary.load_genes import load_genes
 from scoary.load_traits import load_traits
@@ -26,8 +26,8 @@ class TestScoary(TestCase):
         _, genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count', ignore=roary_ignore)
         result_df = init_result_df(genes_df, label_to_trait=generate_fake_traits(genes_df))
         test_df = create_test_df(result_df=result_df)
-        self.assertEqual(['__contingency_table__', 'pval'], test_df.columns.tolist())
-        print(f"Done: minpval={test_df.pval.min()}")
+        self.assertEqual(['__contingency_table__', 'fisher_p'], test_df.columns.tolist())
+        print(f"Done: minpval={test_df.fisher_p.min()}")
 
     def test_odds_ratio(self):
         _, genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count', ignore=roary_ignore)
@@ -50,21 +50,34 @@ class TestScoary(TestCase):
         for manual_or, fisher_or in zip(test_df['odds_ratio'], fisher_ors):
             self.assertTrue(is_equivalent(manual_or, fisher_or))
 
+    def test_init_result_df_performance(self):
+        _, genes_df = load_genes(get_path('new_ds', 'genes-hog'), gene_data_type='gene-list:\t')
+        ltt = generate_fake_traits(genes_df)
+        start = datetime.now()
+        result_df = init_result_df(genes_df, label_to_trait=ltt)
+        end = datetime.now()
+        print(result_df)
+        print('took:', end - start)
+
     def test_tetracycline(self):
         _, genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count', ignore=roary_ignore)
         _, traits_df = load_traits(get_path('tetracycline', 'traits'), trait_data_type='binary:,')
         trait_series = traits_df['Tetracycline_resistance']
 
         # calculate sensitivity and specificity
-        test_df = init_result_df(genes_df, label_to_trait={l: bool(v) for l, v in trait_series.items() if v in (0, 1)})
+        test_df = init_result_df(
+            genes_df,
+            trait_series=pd.Series(
+                {l: bool(v) for l, v in trait_series.items() if v in (0, 1)},
+                dtype='boolean'
+            )
+        )
         # calculate odds_ratio
         test_df = add_odds_ratio(test_df)
         # calculate pairwise comparisons
-        all_label_to_gene = get_all_label_to_gene(genes_df)
         tree = ScoaryTree.from_list(get_json('tetracycline', 'treelist')['as_list'])
-        assert set(tree.labels()) == set(all_label_to_gene['TetRCG'])
-        label_to_trait = get_label_to_trait(trait_series)
-        test_df = pair_picking(test_df, genes_df, tree=tree, label_to_trait=label_to_trait)
+        assert set(tree.labels()) == set(genes_df.columns)
+        test_df = pair_picking(test_df, genes_df, tree=tree, label_to_trait=trait_series)
 
         # load expected result from scoary 1
         expected_result = pd.read_csv(get_path('tetracycline', 'scoary1-result'))

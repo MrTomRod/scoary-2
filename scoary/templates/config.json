@@ -29,10 +29,10 @@
     }
   },
   "link-config": {
-    "single-gene": "https://dialact.bioinformatics.unibe.ch/gene/{gene}",
+    "single-gene": "https://localhost/gene/{gene}",
     "many-genes": {
-      "gene trait matching": "https://dialact.bioinformatics.unibe.ch/gene-trait-matching/?g1={have-isolates}&g2={lack-isolates}",
-      "compare genes": "https://dialact.bioinformatics.unibe.ch/compare-genes/?genes={all-genes}"
+      "gene trait matching": "https://localhost/gene-trait-matching/?g1={have-isolates}&g2={lack-isolates}",
+      "compare genes": "https://localhost/compare-genes/?genes={all-genes}"
     },
     "concat-string": "+"
   }

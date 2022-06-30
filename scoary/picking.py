@@ -28,7 +28,6 @@ def pick(
 
     def _pick(left_label, right_label):
         if type(left_label) is str:
-            assert type(label_to_trait_a[left_label]) is bool
             left = init_leaf(
                 trait_a=label_to_trait_a[left_label],
                 trait_b_list=trait_b_df[left_label].to_numpy(dtype='bool')
@@ -182,7 +181,7 @@ def apply_binomtest(max_contr, max_suppo, max_oppos):
 # values[n, 0, 4] -> max supporting pairs for trait n if condition 'free' is added
 
 
-@njit('int64[:, ::3, ::5](b1, boolean[:])',
+@njit('int64[:, ::3, ::5](boolean, boolean[:])',
       cache=True, nogil=True, boundscheck=False, parallel=False)  # prange not better
 def init_leaf(trait_a: bool, trait_b_list: np.array) -> np.array:
     n_traits = trait_b_list.shape[0]

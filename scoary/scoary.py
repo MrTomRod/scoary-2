@@ -1,4 +1,4 @@
-from scoary.progressbar import print_progress
+from .progressbar import print_progress
 from .utils import *
 from .ScoaryTree import ScoaryTree
 from .load_genes import load_genes
@@ -14,6 +14,8 @@ def scoary(
         traits: str,
         outdir: str,
         multiple_testing: str = 'bonferroni:0.999',
+        worst_cutoff: float = None,
+        max_genes: int = None,
         gene_info: str = None,
         trait_info: str = None,
         isolate_info: str = None,
@@ -23,6 +25,7 @@ def scoary(
         restrict_to: str = None,
         ignore: str = None,
         n_cpus: int = 1,
+        n_cpus_binarization: int = None,
         trait_data_type: str = 'binary:,',
         gene_data_type: str = 'gene-count:,',
         random_state: int = None,
@@ -37,6 +40,10 @@ def scoary(
     :param multiple_testing: "method:cutoff" for filtering genes after Fisher's test, where cutoff is a number
      and method is one of [bonferroni, sidak, holm-sidak, holm, simes-hochberg, hommel, fdr_bh, fdr_by,  fdr_tsbh,
      fdr_tsbky]
+    :param worst_cutoff: Drop traits if no gene with "worst" pvalue lower than threshold. Recommended if
+    dataset contains multiple species
+    :param max_genes: Keep only n highest-scoring genes in Fisher's test. Recommended if dataset is big and contains
+     multiple species
     :param gene_info: Path to file that describes genes: columns=arbitrary properties, rows=genes
     :param trait_info: Path to file that describes traits: columns=arbitrary properties, rows=traits
     :param isolate_info: Path to file that describes isolates: columns=arbitrary properties, rows=isolates
@@ -49,6 +56,7 @@ def scoary(
     :param ignore: Comma-separated list of isolates to be ignored for this analysis
     :param n_cpus: Number of CPUs that should be used. There is overhead in multiprocessing, so if the dataset is
     small, use n_cpus=1
+    :param n_cpus_binarization: Number of CPUs that should be used for binarization. Default: one tenth of n_cpus
     :param trait_data_type: "<method>:<?cutoff>:<?covariance_type>:<?alternative>:<?delimiter>" How to read the traits
      table. Example: "gene-list:\\t" for OrthoFinder N0.tsv table
     :param gene_data_type: "<data_type>:<?delimiter>" How to read the genes table. Example: "gene-list:\\t" for
@@ -58,9 +66,11 @@ def scoary(
     """
     print('Welcome to Scoary 2!')
 
-    # parse input, create outdir
+    # parse input, create outdir, setup logging
     trait_data_type = decode_unicode(trait_data_type)
     gene_data_type = decode_unicode(gene_data_type)
+    if n_cpus_binarization is None:
+        n_cpus_binarization = 1 + n_cpus // 10
     outdir = setup_outdir(outdir, input=locals())
     setup_logging(logger, f'{outdir}/logs/scoary-2.log')
     mt_f_method, mt_f_cutoff = parse_correction(multiple_testing)
@@ -76,7 +86,7 @@ def scoary(
         trait_data_type=trait_data_type,
         restrict_to=restrict_to,
         ignore=ignore,
-        n_cpus=n_cpus,
+        n_cpus=n_cpus_binarization,
         random_state=random_state,
         outdir=outdir,
         limit_traits=limit_traits
@@ -115,9 +125,6 @@ def scoary(
             expected_overlap_set=set(genes_bool_df.columns), reference_file='placeholder'
         )
 
-    # create convenient dictionary: {gene: {label: bool})
-    all_label_to_gene = get_all_label_to_gene(genes_bool_df)
-
     # load phylogeny
     if newicktree is None:
         logger.info('Generating phylogenetic tree from gene presence-absence-matrix...')
@@ -155,8 +162,9 @@ def scoary(
         'all_labels': all_labels,
         'mt_f_method': mt_f_method,
         'mt_f_cutoff': mt_f_cutoff,
+        'max_genes': max_genes,
+        'worst_cutoff': worst_cutoff,
         'n_permut': n_permut,
-        'all_label_to_gene': all_label_to_gene,
         'random_state': random_state,
         'pairwise': pairwise,
     })
@@ -165,6 +173,7 @@ def scoary(
 
     logger.info('Start analyzing traits...')
     if n_cpus == 1:
+        picking_start = datetime.now()
         trait_to_result = {trait: analyze_trait(trait, ns) for trait in traits}
     else:
         mp.freeze_support()
@@ -172,15 +181,17 @@ def scoary(
         trait_to_result = mgr.dict()
         [queue.put(trait) for trait in traits]
         procs = [mp.Process(target=worker, args=(queue, ns, trait_to_result, i)) for i in range(n_cpus)]
+        picking_start = datetime.now()
         [p.start() for p in procs]
         [p.join() for p in procs]
+    picking_end = datetime.now()
 
     print_progress(
         len(ns.traits_df.columns), len(ns.traits_df.columns),
         message='COMPLETE!', start_time=ns.start_time, message_width=25,
         end='\n'
     )
-
+    logging.info(f'Picking took {picking_end - picking_start}')
     try:
         summary_df = create_summary_df(trait_to_result)
         create_final_overview(summary_df, ns, isolate_info)
@@ -220,6 +231,7 @@ def create_summary_df(trait_to_result: {str: [dict | str | None]}) -> pd.DataFra
         raise NoTraitsLeftException('No traits left after filtering')
 
     summary_df = pd.DataFrame(trait_to_result).T
+    summary_df = summary_df.infer_objects()  # harmonize dtypes
 
     logger.debug(f'Created summary_df:\n{summary_df}')
 

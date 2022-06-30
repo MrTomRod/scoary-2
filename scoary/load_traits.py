@@ -11,7 +11,7 @@ from pandas._libs.parsers import STR_NA_VALUES
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.mixture import GaussianMixture
 
-from scoary.progressbar import print_progress
+from .progressbar import print_progress
 from .utils import setup_logging, is_float, ignore_warnings, BinarizeTraitNamespace, MockLock, MockCounter, \
     grasp_namespace, NotSplittableError
 from queue import Empty
@@ -34,6 +34,13 @@ def filter_df(df: pd.DataFrame, restrict_to: str = None, ignore: str = None) -> 
         df = df[[i in restrict_to for i in df.index]]
 
     return df
+
+
+def switch_labels(classes: pd.Series, means: np.array) -> pd.Series:
+    if means[0] > means[1]:
+        return classes
+    else:
+        return ~classes
 
 
 def load_binary(traits: str, delimiter: str, restrict_to: str = None, ignore: str = None,
@@ -104,6 +111,9 @@ def apply_kmeans(kmeans: KMeans, data: pd.Series) -> (pd.Series, dict):
     values = nan_free_data.values.reshape(-1, 1)
     fit = kmeans.fit(values)
     labels_ = fit.labels_.astype(bool)
+
+    switch_labels(labels_, kmeans.cluster_centers_.flatten())
+
     # insert_positions = [v - i for i, v in enumerate(np.where(nan_vector)[0])]
     label_to_class = dict(zip(nan_free_data.index, labels_))
     return pd.array([label_to_class.get(l, pd.NA) for l in data.index], dtype="boolean"), \
@@ -138,8 +148,8 @@ def generate_extract_covariances(covariance_type: str) -> Callable:
 
 
 @ignore_warnings(warning=ConvergenceWarning)
-def apply_gm(gm: GaussianMixture, data: pd.Series, certainty_cutoff: float, extract_covariances: Callable) -> (
-        pd.Series, dict):
+def apply_gm(gm: GaussianMixture, data: pd.Series, certainty_cutoff: float, extract_covariances: Callable
+             ) -> (pd.Series, dict):
     nan_free_data = data[~np.isnan(data.values)]
     values = nan_free_data.values.reshape(-1, 1)
     fit = gm.fit(values)
@@ -154,6 +164,8 @@ def apply_gm(gm: GaussianMixture, data: pd.Series, certainty_cutoff: float, extr
 
     if n_pos < 1 or n_neg < 1:
         raise NotSplittableError(f'GaussianMixture failed to split {data.name}')
+
+    result = switch_labels(result, gm.means_.flatten())
 
     metadata = {
         'method': 'gaussian', 'success': True,

@@ -29,7 +29,7 @@ DATA = {
         'tree': 'ExampleTree.nwk',
         'treelist': 'expected_result.json',
         'tdm': 'tetracycline_TDM.csv',
-        'scoary1-result': 'best_fisher_permute100.results.csv',
+        'scoary1-result': 'fisher_permute100.results.csv',
     },
     'small_ds': {
         'genes': 'pres_abs.csv',

@@ -10,7 +10,6 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.collections import PatchCollection, QuadMesh
 from matplotlib.patches import Rectangle
-from matplotlib.colors import LogNorm, Colormap, LinearSegmentedColormap
 
 from .utils import AnalyzeTraitNamespace, ROOT_DIR, RecursionLimit
 
@@ -36,9 +35,9 @@ def plot_dendrogram(linkage_matrix: np.ndarray, labels: [str], ax: Axes) -> {}:
     return dendrogram_params
 
 
-def add_clickable_patches(patch_names, fig: Figure, ax: Axes):
+def add_clickable_patches(patch_names, fig: Figure, ax: Axes, max_x: int):
     patches = [
-        Rectangle(xy=(0, i * 10), width=15, height=10)
+        Rectangle(xy=(0, i * 10), width=max_x, height=10)
         for i in range(len(patch_names))
     ]
 
@@ -94,7 +93,7 @@ def plot_manhattan_like(qvals: pd.DataFrame, fig: Figure, ax: Axes, column_defs:
     ax.grid(visible=True, which='both', axis='x', linestyle='dashed')
 
     # add shape on top of colormesh and ticks that can be made clickable
-    add_clickable_patches(qvals.index, fig, ax)
+    add_clickable_patches(qvals.index, fig, ax, max_x)
 
 
 def create_final_overview(summary_df: pd.DataFrame, ns: AnalyzeTraitNamespace, isolate_info_df: pd.DataFrame = None):
