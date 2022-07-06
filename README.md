@@ -1,4 +1,5 @@
-# Scoary 2
+![Scoary 2 logo (light mode)](media/scoary-2-logo-full.svg#gh-light-mode-only)
+![Scoary 2 logo (dark mode)](media/scoary-2-logo-full-dark.svg#gh-dark-mode-only)
 
 Scoary 2 associates orthogenes (e.g. generated using [OrthoFinder][orthofinder]
 or [Roary][roary] to traits. It reports a list of genes sorted by strength of

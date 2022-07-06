@@ -109,7 +109,7 @@ def create_final_overview(summary_df: pd.DataFrame, ns: AnalyzeTraitNamespace, i
     files = ['overview.html', 'trait.html', 'overview.css', 'trait.css', 'overview.js', 'trait.js']
     copy(src=f'{ROOT_DIR}/templates/overview.html', dst=f'{ns.outdir}/overview.html')
     copy(src=f'{ROOT_DIR}/templates/trait.html', dst=f'{ns.outdir}/trait.html')
-    for file in ['config.json', 'trait.js', 'trait.css', 'overview.js', 'overview.css', 'favicon.ico']:
+    for file in ['config.json', 'trait.js', 'trait.css', 'overview.js', 'overview.css', 'favicon.svg']:
         copy(src=f'{ROOT_DIR}/templates/{file}', dst=f'{ns.outdir}/app/{file}')
 
     summary_df_index = list(summary_df.index)
