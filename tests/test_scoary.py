@@ -33,9 +33,10 @@ class TestScoary(TestCase):
         scoary(
             genes=get_path('tetracycline', 'genes'),
             traits=get_path('tetracycline', 'traits'),
-            n_permut=1000,
+            n_permut=200,
             n_cpus=4,
-            outdir=self.tempdir
+            outdir=self.tempdir,
+            multiple_testing='native:0.05'
         )
 
     def test_scoary_gene_info(self):
@@ -134,6 +135,20 @@ class TestScoary(TestCase):
             random_state=42,
             n_cpus=1,
             outdir=self.tempdir,
+            multiple_testing='native:0.05',
+        )
+
+    def test_scoary_jacordova(self):
+        scoary(
+            genes='../data/jacordova/GeneCount_Scoary_Ecoli.txt',
+            gene_data_type='gene-count:\t',
+            traits='../data/jacordova/Ecoli_traits.txt',
+            trait_data_type='gaussian:kmeans:\t',  # {'tied', 'full', 'diag', 'spherical'}
+            n_permut=1000,
+            random_state=42,
+            n_cpus=1,
+            outdir=self.tempdir,
+            multiple_testing='native:0.05',
         )
 
     def test_same_hemming_result(self):

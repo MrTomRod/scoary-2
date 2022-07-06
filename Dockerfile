@@ -13,7 +13,8 @@ RUN apt-get update && \
 # RUN rm -rf /tmp/scoary
 # WORKDIR /
 
-RUN pip install scoary-2 && \
+ARG SCOARY_VERSION
+RUN pip install scoary-2==$SCOARY_VERSION && \
     pip cache purge
 
 # set these environment variables to directories where non-root is allowed to write

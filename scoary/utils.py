@@ -11,8 +11,8 @@ import numpy as np
 import pandas as pd
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-ALLOWED_CORRECTIONS = {'bonferroni', 'sidak', 'holm-sidak', 'holm', 'simes-hochberg', 'hommel', 'fdr_bh', 'fdr_by',
-                       'fdr_tsbh', 'fdr_tsbky'}
+ALLOWED_CORRECTIONS = {'native', 'bonferroni', 'sidak', 'holm-sidak', 'holm', 'simes-hochberg', 'hommel', 'fdr_bh',
+                       'fdr_by', 'fdr_tsbh', 'fdr_tsbky'}
 
 logger = logging.getLogger('scoary.utils')
 
@@ -20,9 +20,13 @@ try:
     from ete3 import Tree as EteTree
 
 
-    def print_tree(scoary_tree, label_to_gene: {str: bool}, label_to_trait: {str: bool}):
-        renamed_tree = scoary_tree.rename(
-            lambda label: f'{int(label_to_gene[label])}{int(label_to_trait[label])}_{label}')
+    def print_tree(scoary_tree, label_to_gene: {str: bool}, label_to_trait: {str: bool}, show_label=True):
+        if show_label:
+            label_fn = lambda label: f'{int(label_to_gene[label])}{int(label_to_trait[label])}_{label}'
+        else:
+            label_fn = lambda label: f'{int(label_to_gene[label])}{int(label_to_trait[label])}'
+
+        renamed_tree = scoary_tree.rename(label_fn)
         ete_tree = EteTree(renamed_tree.to_newick())
         print(ete_tree)
 

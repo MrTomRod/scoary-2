@@ -22,7 +22,7 @@ poetry publish
 If you use docker, simply replace each `podman` with `docker`.
 
 ```shell
-podman build --tag troder/scoary-2 .
+podman build --build-arg SCOARY_VERSION=$SCOARY_VERSION --tag troder/scoary-2 .
 ```
 
 Publish docker image:

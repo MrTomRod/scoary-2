@@ -1,6 +1,6 @@
 from functools import cache
 
-from numba import njit, prange
+from numba import njit
 import numpy as np
 import pandas as pd
 from scipy.stats import binom_test
@@ -27,20 +27,23 @@ def pick(
     assert not trait_b_df.isna().values.any()
 
     def _pick(left_label, right_label):
+        # follow tree until terminal node
+        if type(left_label) is not str:
+            left = _pick(left_label[0], left_label[1])
+        if type(right_label) is not str:
+            right = _pick(right_label[0], right_label[1])
+
+        # only load new leafs when needed for combination (safe RAM)
         if type(left_label) is str:
             left = init_leaf(
                 trait_a=label_to_trait_a[left_label],
                 trait_b_list=trait_b_df[left_label].to_numpy(dtype='bool')
             )
-        else:
-            left = _pick(left_label[0], left_label[1])
         if type(right_label) is str:
             right = init_leaf(
                 trait_a=label_to_trait_a[right_label],
                 trait_b_list=trait_b_df[right_label].to_numpy(dtype='bool')
             )
-        else:
-            right = _pick(right_label[0], right_label[1])
 
         combined = combine_branches(left, right)
 
@@ -154,9 +157,9 @@ def apply_binomtest(max_contr, max_suppo, max_oppos):
     n_traits = max_contr.shape[0]
     result = np.empty(shape=(2, n_traits), dtype='float')
 
-    for i in prange(n_traits):
+    for i in range(n_traits):
         b = _binomtest(max_suppo[i], n=max_contr[i])
-        w = _binomtest(max_contr[i] - max_oppos[i], n=max_contr[i])
+        w = _binomtest(max_oppos[i], n=max_contr[i])
 
         if b < w:
             result[0][i] = b
@@ -168,7 +171,7 @@ def apply_binomtest(max_contr, max_suppo, max_oppos):
 
 
 # selecting:values[<TRAITS>, <3 TYPES OF PAIRINGS>, <5 COMBINATIONS>]
-# selecting:values[<TRAITS>, <0: max; 1: supporting; 2: opposing>, <0: 11; 1: 10; 2: 01; 3: 00; 4: free>]
+# selecting:values[<TRAITS>, <0: max; 1: supporting; 2: opposing>, <0: 11; 1: 10; 2: 01; 3: 00; 4: nf>]
 
 # values[n, 0, :] -> all max contrasting pairs for trait n
 # values[n, 1, :] -> all max supporting pairs for trait n
@@ -178,7 +181,7 @@ def apply_binomtest(max_contr, max_suppo, max_oppos):
 # values[n, 0, 1] -> max supporting pairs for trait n if condition '10' is added
 # values[n, 0, 2] -> max supporting pairs for trait n if condition '01' is added
 # values[n, 0, 3] -> max supporting pairs for trait n if condition '00' is added
-# values[n, 0, 4] -> max supporting pairs for trait n if condition 'free' is added
+# values[n, 0, 4] -> max supporting pairs for trait n if condition 'nf' is added
 
 
 @njit('int64[:, ::3, ::5](boolean, boolean[:])',
@@ -188,35 +191,22 @@ def init_leaf(trait_a: bool, trait_b_list: np.array) -> np.array:
 
     values = np.full(shape=(n_traits, 3, 5), fill_value=-1, dtype='int')
     if trait_a:
-        for i, trait in enumerate(trait_b_list):
-            if trait:
-                values[i, 0, 0] = 0  # contrasting pairs
-                values[i, 1, 0] = 0  # supporting pairs
-                values[i, 2, 0] = 0  # opposing pairs
-            else:
-                values[i, 0, 1] = 0  # pairs_contr
-                values[i, 1, 1] = 0  # pairs_supporting
-                values[i, 2, 1] = 0  # opposing pairs
+        values[:, :, 0][trait_b_list] = 0
+        values[:, :, 1][~trait_b_list] = 0
+
     else:
-        for i, trait in enumerate(trait_b_list):
-            if trait:
-                values[i, 0, 2] = 0  # contrasting pairs
-                values[i, 1, 2] = 0  # supporting pairs
-                values[i, 2, 2] = 0  # opposing pairs
-            else:
-                values[i, 0, 3] = 0  # contrasting pairs
-                values[i, 1, 3] = 0  # supporting pairs
-                values[i, 2, 3] = 0  # opposing pairs
+        values[:, :, 2][trait_b_list] = 0
+        values[:, :, 3][~trait_b_list] = 0
 
     return values
 
 
 @njit('int64[::3, ::5], int64[::3, ::5]',
       cache=True, nogil=True, boundscheck=False, parallel=False)  # parallel kills performance
-def calculate_max_free(left: np.array, right: np.array):
+def calculate_max_nofree(left: np.array, right: np.array):
     values = np.full(shape=(3, 5), fill_value=-1, dtype='int')
 
-    if left[0][4] > -1 and right[0][4] > -1:  # 0 vs 0
+    if left[0][4] > -1 and right[0][4] > -1:  # nf vs nf
         values[0][0] = left[0][4] + right[0][4]
         values[1][0] = left[1][4] + right[1][4]
         values[2][0] = left[2][4] + right[2][4]
@@ -244,12 +234,12 @@ def calculate_max_free(left: np.array, right: np.array):
     max_contr = values[0].max()
 
     max_suppo = -1
-    for i in prange(5):
+    for i in range(5):
         if values[0][i] == max_contr and values[1][i] > max_suppo:
             max_suppo = values[1][i]
 
     max_oppos = -1
-    for i in prange(5):
+    for i in range(5):
         if values[0][i] == max_contr and values[2][i] > max_oppos:
             max_oppos = values[2][i]
 
@@ -263,7 +253,7 @@ def calculate_max_given_condition(condition: int, left: np.array, right: np.arra
 
     if left[0][condition] > -1:
         # compare condition with all conditions
-        for i in prange(5):
+        for i in range(5):
             values[0][i] = left[0][condition] + right[0][i]
             values[1][i] = left[1][condition] + right[1][i]
             values[2][i] = left[2][condition] + right[2][i]
@@ -271,8 +261,8 @@ def calculate_max_given_condition(condition: int, left: np.array, right: np.arra
     if right[0][condition] > -1:
         col_id = 5
         # compare all conditions with condition
-        for i in prange(5):
-            if i == condition:  # this comparison has already been made 00ove
+        for i in range(5):
+            if i == condition:  # this comparison has already been made above
                 continue
 
             values[0][col_id] = left[0][i] + right[0][condition]
@@ -304,10 +294,10 @@ def combine_branches(left: np.array, right: np.array):
 
     values = np.full(shape=left.shape, fill_value=-1, dtype='int')
 
-    # selecting:values[<TRAITS>, <0: max; 1: supporting; 2: opposing>, <0: 11; 1: 10; 2: 01; 3: 00; 4: free>]
-    for trait_id in prange(n_traits):  # prange kills performance
-        for cond in prange(4):  # prange kills performance
-            # {"11": 0, "10": 1, "01": 2, "00": 3, "0": 4}
+    # selecting:values[<TRAITS>, <0: max; 1: supporting; 2: opposing>, <0: 11; 1: 10; 2: 01; 3: 00; 4: nf>]
+    for trait_id in range(n_traits):  # prange kills performance
+        for cond in range(4):  # prange kills performance
+            # {"11": 0, "10": 1, "01": 2, "00": 3, "nf": 4}
             max_contr, max_suppo, max_oppos = calculate_max_given_condition(
                 cond,
                 left[trait_id, :, :],
@@ -316,7 +306,7 @@ def combine_branches(left: np.array, right: np.array):
             values[trait_id, 0, cond] = max_contr
             values[trait_id, 1, cond] = max_suppo
             values[trait_id, 2, cond] = max_oppos
-        max_contr, max_suppo, max_oppos = calculate_max_free(
+        max_contr, max_suppo, max_oppos = calculate_max_nofree(
             left[trait_id, :, :],
             right[trait_id, :, :]
         )

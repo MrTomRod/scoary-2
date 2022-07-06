@@ -299,12 +299,18 @@ def perform_multiple_testing_correction(
 ) -> (float, pd.DataFrame):
     assert 'fisher_p' in col
     new_col = col.replace('fisher_p', 'fisher_q')
-    reject, qval, alphac_sidak, alphac_bonf = multipletests(
-        pvals=test_df[col],
-        alpha=cutoff,
-        method=method,
-        is_sorted=is_sorted,
-    )
+
+    if method == 'native':
+        reject = test_df[col] <= cutoff
+        _, qval, _, _ = multipletests(pvals=test_df[col], alpha=1, method='bonferroni', is_sorted=is_sorted)
+    else:
+        reject, qval, alphac_sidak, alphac_bonf = multipletests(
+            pvals=test_df[col],
+            alpha=cutoff,
+            method=method,
+            is_sorted=is_sorted,
+        )
+
     test_df[new_col] = qval
     test_df = test_df[reject]
     return test_df

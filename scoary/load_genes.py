@@ -59,11 +59,13 @@ def load_gene_count_file(
     count_df.attrs['content_type'] = 'gene-count'
 
     # convert to bool
-    binary_df = count_df.astype('boolean')
+    binary_df = count_df >= 1
 
     # remove core- and unique genes
     row_sums = binary_df.sum(axis=1)
     binary_df = binary_df[(row_sums != 0) & (row_sums != len(binary_df.columns))]
+
+    logger.debug(f'Loaded gene-count-df:\n{binary_df}')
     return count_df, binary_df
 
 
@@ -97,6 +99,8 @@ def load_gene_list_file(
     # remove core- and unique genes
     row_sums = binary_df.sum(axis=1)
     binary_df = binary_df[(row_sums != 0) & (row_sums != len(binary_df.columns))]
+
+    logger.debug(f'Loaded gene-list -df:\n{binary_df}')
     return list_df, binary_df
 
 

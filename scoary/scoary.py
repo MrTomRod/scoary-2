@@ -37,9 +37,10 @@ def scoary(
     :param genes: Path to gene presence/absence table: columns=isolates, rows=genes
     :param traits: Path to trait presence/absence table: columns=traits, rows=isolates
     :param outdir: Directory to place output files
-    :param multiple_testing: "method:cutoff" for filtering genes after Fisher's test, where cutoff is a number
-     and method is one of [bonferroni, sidak, holm-sidak, holm, simes-hochberg, hommel, fdr_bh, fdr_by,  fdr_tsbh,
-     fdr_tsbky]
+    :param multiple_testing: "method:cutoff" for filtering genes after Fisher's test, where cutoff is a number that
+    specifies the FWER and method is one of [bonferroni, sidak, holm-sidak, holm, simes-hochberg, hommel, fdr_bh,
+    fdr_by,  fdr_tsbh, fdr_tsbky]. Alternatively, the method can be 'native': then, the cutoff targets the uncorrected
+    pvalue from Fisher's test.
     :param worst_cutoff: Drop traits if no gene with "worst" pvalue lower than threshold. Recommended if
     dataset contains multiple species
     :param max_genes: Keep only n highest-scoring genes in Fisher's test. Recommended if dataset is big and contains
