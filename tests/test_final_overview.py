@@ -60,6 +60,16 @@ class Test(TestCase):
 
         create_final_overview(summary_df=summary_df, ns=self.fake_ns)
 
+    def test_real(self):
+        # Find the best way of plotting dendrogram
+        # summary_df = pd.read_csv(f'../data/summary__.tsv', sep='\t', index_col=0)
+        summary_df = pd.read_csv(f'../TMP/TEST_OUTPUT_real_restricted/summary.tsv', sep='\t', index_col=0)
+        self.fake_ns.traits_df = pd.read_csv('../data/traits_df.tsv', sep='\t', index_col=0, dtype='str') == 'True'
+        create_final_overview(
+            summary_df=summary_df,
+            ns=self.fake_ns
+        )
+
     def test_understand_jaccard(self):
         from scipy.spatial.distance import cdist
 

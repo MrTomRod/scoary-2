@@ -106,9 +106,8 @@ def create_final_overview(summary_df: pd.DataFrame, ns: AnalyzeTraitNamespace, i
 
     logger.info('Copying files...')
     # copy files
-    files = ['overview.html', 'trait.html', 'overview.css', 'trait.css', 'overview.js', 'trait.js']
-    copy(src=f'{ROOT_DIR}/templates/overview.html', dst=f'{ns.outdir}/overview.html')
-    copy(src=f'{ROOT_DIR}/templates/trait.html', dst=f'{ns.outdir}/trait.html')
+    for file in ['overview.html', 'trait.html']:
+        copy(src=f'{ROOT_DIR}/templates/{file}', dst=f'{ns.outdir}/{file}')
     for file in ['config.json', 'trait.js', 'trait.css', 'overview.js', 'overview.css', 'favicon.svg']:
         copy(src=f'{ROOT_DIR}/templates/{file}', dst=f'{ns.outdir}/app/{file}')
 
@@ -119,15 +118,18 @@ def create_final_overview(summary_df: pd.DataFrame, ns: AnalyzeTraitNamespace, i
         pre_jaccard = ns.traits_df[summary_df.index].astype('float').T
         pre_jaccard = ((pre_jaccard.fillna(0.5) * 2) - 1).astype('int')  # False -> -1, NAN -> 0, True -> 1
 
-        # whether class=0 and class=1 are arbitrary. Calculate both possibilities, take minimum
+        # whether class=0 or class=1 is arbitrary. Calculate both possibilities, take minimum
         d1 = cdist(pre_jaccard, pre_jaccard, metric='jaccard')
         d2 = cdist(pre_jaccard, 0 - pre_jaccard, metric='jaccard')
-        jaccard_distance = np.minimum(d1, d2)
+        jaccard_distance = np.minimum(d1, d2) * 2  # multiply by 2 to make maximal distance 1 again
 
-        jaccard_df = pd.DataFrame(
-            jaccard_distance, columns=pre_jaccard.index, index=pre_jaccard.index
+        jaccard_df = pd.DataFrame(jaccard_distance, columns=pre_jaccard.index, index=pre_jaccard.index)
+        del d1, d2, jaccard_distance
+        linkage_matrix = hierarchy.linkage(
+            squareform(jaccard_df, checks=True),
+            method='average',
+            optimal_ordering=True
         )
-        linkage_matrix = hierarchy.linkage(squareform(jaccard_df), 'single')
 
         # calculate plot proportions
         content_height = max(3., len(jaccard_df) / 6)  # height dependent on number of compounds
@@ -156,7 +158,7 @@ def create_final_overview(summary_df: pd.DataFrame, ns: AnalyzeTraitNamespace, i
         dendrogram_params = plot_dendrogram(linkage_matrix, labels=jaccard_df.columns.values, ax=ax_dendrogram)
 
         # reindex summary_df according to order in dendrogram
-        summary_df_index = dendrogram_params['ivl'][::-1]
+        summary_df_index = dendrogram_params['ivl']
         summary_df = summary_df.reindex(summary_df_index)
 
         column_defs = {

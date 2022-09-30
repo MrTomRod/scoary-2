@@ -24,7 +24,7 @@ class TestScoary(TestCase):
         scoary(
             genes=get_path('tetracycline', 'genes'),
             traits=get_path('tetracycline', 'traits'),
-            n_permut=1000,
+            n_permut=10000,
             n_cpus=1,
             outdir=self.tempdir
         )
@@ -113,6 +113,29 @@ class TestScoary(TestCase):
             trait_info=get_path('full_ds', 'trait-info'),
             isolate_info=get_path('full_ds', 'isolate-info'),
             n_permut=600,
+            random_state=42,
+            n_cpus=8,
+            n_cpus_binarization=1,
+            # restrict_to=RESTRICT_TO,
+            max_genes=50,
+            # limit_traits=(12377, 12378),
+            # limit_traits=(2000, 2400),
+            # limit_traits=(2330, 2340),
+            worst_cutoff=0.1,
+            outdir=self.tempdir,
+        )
+
+    def test_scoary_real_restr(self):
+        scoary(
+            multiple_testing='bonferroni:0.1',
+            genes=get_path('full_ds', 'genes'),
+            gene_info=get_path('full_ds', 'gene-info'),
+            gene_data_type='gene-list:\t',
+            traits=get_path('full_ds', 'traits'),
+            trait_data_type=f'gaussian:skip:\t:tied',  # {'tied', 'full', 'diag', 'spherical'}
+            trait_info=get_path('full_ds', 'trait-info'),
+            isolate_info=get_path('full_ds', 'isolate-info'),
+            n_permut=300,
             random_state=42,
             n_cpus=8,
             n_cpus_binarization=1,

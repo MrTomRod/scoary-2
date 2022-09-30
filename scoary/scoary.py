@@ -44,7 +44,7 @@ def scoary(
     :param worst_cutoff: Drop traits if no gene with "worst" pvalue lower than threshold. Recommended if
     dataset contains multiple species
     :param max_genes: Keep only n highest-scoring genes in Fisher's test. Recommended if dataset is big and contains
-     multiple species
+     multiple species; avoids waisting computational resources on traits that simply correlate with phylogeny
     :param gene_info: Path to file that describes genes: columns=arbitrary properties, rows=genes
     :param trait_info: Path to file that describes traits: columns=arbitrary properties, rows=traits
     :param isolate_info: Path to file that describes isolates: columns=arbitrary properties, rows=isolates
