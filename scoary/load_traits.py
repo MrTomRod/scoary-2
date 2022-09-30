@@ -1,6 +1,5 @@
 import logging
 import queue
-from collections import defaultdict
 from datetime import datetime
 from typing import Callable
 
@@ -46,9 +45,7 @@ def switch_labels(classes: pd.Series, means: np.array) -> pd.Series:
 def load_binary(traits: str, delimiter: str, restrict_to: str = None, ignore: str = None,
                 limit_traits: (int, int) = None):
     logger.debug(f'Loading binary traits: {traits=} {delimiter=}')
-    dtypes = defaultdict(lambda: int)
-    dtypes["index_column"] = str
-    traits_df = pd.read_csv(traits, delimiter=delimiter, index_col=0, dtype=dtypes, na_values=STR_NA_VALUES)
+    traits_df = pd.read_csv(traits, delimiter=delimiter, index_col=0, na_values=STR_NA_VALUES)
 
     if limit_traits is not None:
         assert len(limit_traits) == 2, f'{limit_traits=} is poorly formatted: must be (int, int).'
@@ -80,9 +77,7 @@ def load_binary(traits: str, delimiter: str, restrict_to: str = None, ignore: st
 def load_numeric(traits: str, delimiter: str, restrict_to: str = None, ignore: str = None,
                  limit_traits: (int, int) = None):
     logger.debug(f'Loading numeric traits: {traits=} {delimiter=}')
-    dtypes = defaultdict(lambda: float)
-    dtypes["index_column"] = str
-    numeric_df = pd.read_csv(traits, delimiter=delimiter, index_col=0, dtype=dtypes, na_values=STR_NA_VALUES)
+    numeric_df = pd.read_csv(traits, delimiter=delimiter, index_col=0, na_values=STR_NA_VALUES)
 
     if limit_traits is not None:
         assert len(limit_traits) == 2, f'{limit_traits=} is poorly formatted: must be (int, int).'

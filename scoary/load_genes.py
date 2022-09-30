@@ -42,9 +42,7 @@ def load_gene_count_file(
     :param start_col: how many columns to skip
     :return: genes_df (DataFrame, dtype: bool); columns: strains; index: genes
     """
-    dtypes = defaultdict(lambda: int)
-    dtypes["index_column"] = str
-    count_df = pd.read_csv(path, delimiter=delimiter, index_col=0, dtype=dtypes)
+    count_df = pd.read_csv(path, delimiter=delimiter, index_col=0)
 
     # remove columns that are not in traits_df
     if restrict_to is not None or ignore is not None:

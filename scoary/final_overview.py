@@ -4,6 +4,12 @@ import numpy as np
 import pandas as pd
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import cdist, squareform
+import matplotlib as mpl
+
+mpl.use('SVG')
+# The SVG backend avoids this error message:
+# ValueError: Image size of 700x165660 pixels is too large. It must be less than 2^16 in each direction.
+# This allows for dendrograms with at least 20'000 traits
 
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
@@ -139,10 +145,7 @@ def create_final_overview(summary_df: pd.DataFrame, ns: AnalyzeTraitNamespace, i
 
         # create matplotlib figure
         plt.close()
-        fig = plt.figure(figsize=(8, total_height), dpi=4)
-        # dpi=4 avoids this error message:
-        # ValueError: Image size of 700x165660 pixels is too large. It must be less than 2^16 in each direction.
-        # This allows for dendrograms with at least 20'000 traits
+        fig = plt.figure(figsize=(8, total_height))  # , dpi=4)
         gs = fig.add_gridspec(
             nrows=1, ncols=2, width_ratios=(2, 1),
             left=0.05, right=0.6, bottom=whitespace_rel * 2, top=1 - whitespace_rel,
