@@ -5,6 +5,22 @@ from scoary.final_overview import create_final_overview
 from scoary.load_traits import load_binary
 from scoary.utils import pd, AnalyzeTraitNamespace
 
+REPLACE_COPIES_WITH_SYMLINKS = True
+
+
+def replace_copies_with_symlinks():
+    def repl(fn, relpath='../..', subdir='app'):
+        src = f'{relpath}/scoary/templates/{fn}'
+        target = f'../TEST_OUTPUT/{subdir}/{fn}'
+        if os.path.isfile(target):
+            os.remove(target)
+        os.symlink(src=src, dst=target)
+
+    for file in ['trait.html', 'overview.html']:
+        repl(file, relpath='..', subdir='')
+    for file in ['config.json', 'favicon.svg', 'overview.css', 'overview.js', 'trait.css', 'trait.js']:
+        repl(file)
+
 
 class Test(TestCase):
     def setUp(self) -> None:
@@ -19,6 +35,8 @@ class Test(TestCase):
             os.makedirs(f'{self.temp_dir}/{dir_}', exist_ok=True)
 
     def tearDown(self) -> None:
+        if REPLACE_COPIES_WITH_SYMLINKS:
+            replace_copies_with_symlinks()
         print(f'Open file://{self.temp_dir} to see the result!')
         print(f'To clean up, run "rm -r {self.temp_dir}"')
 
@@ -128,3 +146,8 @@ class Test(TestCase):
             print(d)
 
         x(a)
+
+
+class ReplaceCopiesWithSymlinks(TestCase):
+    def test_replace_copies_with_symlinks(self):
+        replace_copies_with_symlinks()

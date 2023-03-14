@@ -6,9 +6,8 @@ for (const attr of ['table', 'thead', 'tbody', 'tr', 'td', 'th']) {
 }
 
 const svgContainer = document.getElementById('svg-container')
-let svgDocument
-let overviewDf
-let patches
+const traitInfoDiv = document.getElementById('trait-info')
+let svgDocument, overviewDf, patches
 
 
 /**
@@ -56,11 +55,6 @@ const loadSvgPromise = fetch('overview_plot.svg', {method: 'GET', headers: {}}).
     console.warn(this, err)
 })
 
-function createTooltipTitle() {
-    const elementIndex = this.getAttribute('index')
-    const traitName = overviewDf['index'][elementIndex]
-    return `<a href="trait.html?trait=${traitName}">${traitName}</a>`
-}
 
 const isFloat = (n) => {
     n = parseFloat(n)
@@ -68,11 +62,18 @@ const isFloat = (n) => {
     return Number(n) === n && n % 1 !== 0
 }
 
-function createTooltipContent() {
-    const elementIndex = this.getAttribute('index')
+function createTooltipContent(elementIndex) {
     const traitData = overviewDf.data[elementIndex]
+    const traitName = overviewDf['index'][elementIndex]
 
-    let html = '<table id="popoverTable" class="table"><tbody>'
+    let html = `<h2><a href="trait.html?trait=${traitName}">${traitName} 
+<button type="button" class="btn btn-info"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-arrow-up-right" viewBox="0 0 16 16">
+  <path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"></path>
+  <path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z"></path>
+</svg></button>
+</a></h2>`
+
+    html += '<table id="popoverTable" class="table"><tbody>'
 
     overviewDf.meta.fields.forEach((key, i) => {
         if (key === 'Trait') return
@@ -95,38 +96,12 @@ function createTooltipContent() {
 }
 
 Promise.all([loadSvgPromise, overviewPromise]).then(() => {
-    const openPopovers = []
     const patchesElement = document.getElementById('clickable-patches')
 
-    const hideAllPopovers = () => {
-        while (openPopovers.length) {
-            const target = openPopovers.pop()
-            bootstrap.Popover.getInstance(target).hide()
-        }
-    }
     patchesElement.addEventListener('mouseover', function (event) {
-        let instance = bootstrap.Popover.getInstance(event.target)
-        if (instance === null) {
-            instance = new bootstrap.Popover(event.target, {
-                container: 'body',
-                trigger: 'manual',
-                placement: 'right',
-                html: true,
-                title: createTooltipTitle,
-                content: createTooltipContent,
-            })
-        }
-
-        instance.show()
-        hideAllPopovers()
-        openPopovers.push(event.target)
+        traitInfoDiv.innerHTML = createTooltipContent(event.target.getAttribute('index'))
     })
     patchesElement.addEventListener('auxclick', openTraitsTab)
-    document.addEventListener('click', function (event) {
-        const isPopoverOrSvg = event.target.closest('.popover, svg') !== null
-        if (isPopoverOrSvg) return
-        hideAllPopovers()
-    })
     Array.from(patchesElement.children).forEach((patch, index) => {
         patch.setAttribute('index', index)
     })
@@ -144,9 +119,10 @@ function openTraitsTab(event) {
     window.open(url, '_blank').focus()
 }
 
-let ax4
+let ax4, slimSelect
 const selected = []
 
+// toggle trait yellow
 const toggleTrait = (eventOrId) => {
     let target, index
     if (Number.isInteger(eventOrId)) {
@@ -205,6 +181,12 @@ const deselectAll = () => {
     }
 }
 
+const goToTrait = () => {
+    const selectId = parseInt(slimSelect.selected())
+    const target = ax4.children[selectId]
+    target.scrollIntoView()
+}
+
 // // activate clickable boxes
 Promise.all([loadSvgPromise, overviewPromise]
 ).then(([result, __]) => {
@@ -217,7 +199,7 @@ Promise.all([loadSvgPromise, overviewPromise]
 
     ax4 = document.getElementById('clickable-patches')
 
-    const slimSelect = new SlimSelect({
+    slimSelect = new SlimSelect({
         select: '#slim-select',
         placeholder: 'Click here to select traits',
         data: overviewDf.index.map((trait, index) => {
@@ -226,6 +208,11 @@ Promise.all([loadSvgPromise, overviewPromise]
         onChange: function () {
             const selectId = parseInt(slimSelect.selected())
             toggleTrait(selectId)
+            console.log(selectId)
+            traitInfoDiv.innerHTML = createTooltipContent(selectId)
         },
     })
+
+    const goToButton = document.getElementById('goto-button')
+    goToButton.addEventListener('click', goToTrait)
 })

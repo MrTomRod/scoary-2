@@ -105,3 +105,9 @@ code {
 .main-svg {
     background: unset !important;
 }
+
+.title-with-link {
+    display: flex;
+    justify-content: space-between;
+}
+

@@ -112,7 +112,7 @@ def apply_kmeans(kmeans: KMeans, data: pd.Series) -> (pd.Series, dict):
     # insert_positions = [v - i for i, v in enumerate(np.where(nan_vector)[0])]
     label_to_class = dict(zip(nan_free_data.index, labels_))
     return pd.array([label_to_class.get(l, pd.NA) for l in data.index], dtype="boolean"), \
-           {'method': 'kmeans', 'cutoff': np.mean(fit.cluster_centers_)}
+        {'method': 'kmeans', 'cutoff': np.mean(fit.cluster_centers_)}
 
 
 def classify_gm(val: [float, float], certainty_cutoff: float):
@@ -290,7 +290,7 @@ def worker(
     new_ns = grasp_namespace(BinarizeTraitNamespace, ns)
     del ns
 
-    kmeans = KMeans(n_clusters=2, random_state=new_ns.random_state)
+    kmeans = KMeans(n_init='auto', n_clusters=2, random_state=new_ns.random_state)
     gm = GaussianMixture(n_components=2, random_state=new_ns.random_state, covariance_type=new_ns.covariance_type)
 
     if new_ns.method == 'kmeans':

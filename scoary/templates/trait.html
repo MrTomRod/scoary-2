@@ -74,13 +74,30 @@
 
     <div id="tree"></div>
 
-    <h2>Genes</h2>
+    <div class="title-with-link">
+        <h2>Genes</h2>
+        <a id="download-genes" href="">
+            <button type="button" class="btn btn-info">results.tsv</button>
+        </a>
+    </div>
+
     <div> Toggle column:
         <div id="vis-toggler"></div>
     </div>
     <table id="result-tsv"></table>
 
-    <h2>Coverage matrix</h2>
+    <div class="title-with-link">
+        <h2>Coverage matrix</h2>
+        <div class="download-links">
+            <a id="download-coverage-matrix" href="">
+                <button type="button" class="btn btn-info">coverage-matrix.tsv</button>
+            </a>
+            <a id="download-values" href="">
+                <button type="button" class="btn btn-info">values.tsv</button>
+            </a>
+        </div>
+    </div>
+
     <table id="coverage-matrix"></table>
 
 </div>

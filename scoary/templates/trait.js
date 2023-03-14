@@ -95,7 +95,13 @@ const documentReadyPromise = new Promise(function (resolve) {
     _domResolve = resolve
 })
 document.addEventListener('DOMContentLoaded', _domResolve)
-documentReadyPromise.then(() => document.querySelector('#trait-name').textContent = trait)
+documentReadyPromise.then(() => {
+    document.querySelector('#trait-name').textContent = trait
+    // set the download links
+    document.getElementById('download-genes').href = `traits/${trait}/result.tsv`
+    document.getElementById('download-coverage-matrix').href = `traits/${trait}/coverage-matrix.tsv`
+    document.getElementById('download-values').href = `traits/${trait}/values.tsv`
+})
 
 
 /**
@@ -178,7 +184,10 @@ const valuesPromise = configPromise.then(config => {
         header: true, download: true, skipEmptyLines: true, delimiter: '\t', newline: '\n',
     }).then((valuesData) => {
         valuesData.isNumeric = valuesData.meta.fields.includes('value')
-        if (!valuesData.isNumeric) document.getElementById('histogram-container').remove()
+        if (!valuesData.isNumeric) {
+            document.getElementById('histogram-container').remove()
+            document.getElementById('download-values').style.display = 'none'
+        }
         valuesData.isolateToTrait = Object.fromEntries(valuesData.data.map(x => [x['isolate'], x['class'].toLowerCase()]))
         if (valuesData.isNumeric) {
             valuesData.isolateToValue = Object.fromEntries(valuesData.data.map(x => [x['isolate'], x['value']]))

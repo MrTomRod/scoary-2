@@ -21,3 +21,5 @@ RUN pip install -U /tmp/scoary/scoary_2-$SCOARY_VERSION-py3-none-any.whl && \
 ENV NUMBA_CACHE_DIR=/tmp/NUMBA_CACHE_DIR
 ENV CONFINT_DB=/tmp/CONFINT_DB
 ENV MPLCONFIGDIR=/tmp/MPLCONFIGDIR
+
+WORKDIR /data
