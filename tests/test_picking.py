@@ -120,7 +120,7 @@ class Test(TestCase):
         pick(tree=dummy_tree, label_to_trait_a=dummy_trait_a, trait_b_df=dummy_trait_b_df, calc_pvals=False)
 
         if run_scoary_1:
-            print('SCOARY 1')
+            print('Scoary1')
             time_1, res = time_fn(
                 scoary_1_pick,
                 kwargs=dict(tree=tetr_tree, label_to_trait_a=tetr_label_to_gene, trait_b_df=tetr_genes_df),
@@ -130,7 +130,7 @@ class Test(TestCase):
         else:
             time_1 = 19.
 
-        print('SCOARY 2')
+        print('Scoary2')
         time_2, res = time_fn(
             pick,
             kwargs=dict(tree=tetr_tree, label_to_trait_a=tetr_label_to_gene, trait_b_df=tetr_genes_df,
@@ -141,7 +141,7 @@ class Test(TestCase):
 
         print(f'Scoary1 took {time_1} sec')
         print(f'Scoary2 took {time_2} sec')
-        print(f'Scoary1 vs Scoary2: {time_1 / time_2}x improvement')
+        print(f'Scoary1 vs Scoary2: {time_1 / time_2}x improvement')  # 33.88 x
 
         if run_scoary_1:
             self.assertTrue(all(np.equal(mc_1, mc_2)), msg='contrasting')
@@ -160,7 +160,7 @@ class Test(TestCase):
         pick(tree=dummy_tree, label_to_trait_a=dummy_trait_a, trait_b_df=dummy_trait_b_df, calc_pvals=False)
 
         if run_scoary_1:
-            print('SCOARY 1')
+            print('Scoary1')
             time_1, res = time_fn(
                 scoary_1_pick,
                 kwargs=dict(tree=tetr_tree, label_to_trait_a=tetr_label_to_gene, trait_b_df=tetr_genes_df),
@@ -170,7 +170,7 @@ class Test(TestCase):
         else:
             time_1 = 19.
 
-        print('SCOARY 2')
+        print('Scoary2')
         tetr_scoary_tree = ScoaryTree.from_list(tetr_tree)
         time_2, res = time_fn(
             pick_nonrecursive,

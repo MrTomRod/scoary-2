@@ -1,3 +1,5 @@
+import pandas as pd
+
 from init_tests import *
 from datetime import datetime
 from scoary.ScoaryTree import ScoaryTree
@@ -10,13 +12,13 @@ def generate_fake_traits(genes_df: pd.DataFrame) -> {str: bool}:
     label_to_trait = {}
     label_to_trait.update({l: True for l in genes_df.columns[:11]})
     label_to_trait.update({l: False for l in genes_df.columns[89:]})
-    return label_to_trait
+    return pd.Series(label_to_trait, dtype='boolean')
 
 
 class TestScoary(TestCase):
     def test_create_result_df(self):
         _, genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count', ignore=roary_ignore)
-        result_df = init_result_df(genes_df, label_to_trait=generate_fake_traits(genes_df))
+        result_df = init_result_df(genes_df, trait_series=generate_fake_traits(genes_df))
         self.assertEqual(
             result_df.columns.tolist(),
             ['Gene', 'g+t+', 'g+t-', 'g-t+', 'g-t-', '__contingency_table__', 'sensitivity', 'specificity']
@@ -24,7 +26,7 @@ class TestScoary(TestCase):
 
     def test_contingency_test(self):
         _, genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count', ignore=roary_ignore)
-        result_df = init_result_df(genes_df, label_to_trait=generate_fake_traits(genes_df))
+        result_df = init_result_df(genes_df, trait_series=generate_fake_traits(genes_df))
         test_df = create_test_df(result_df=result_df)
         self.assertEqual(['__contingency_table__', 'fisher_p'], test_df.columns.tolist())
         print(f"Done: minpval={test_df.fisher_p.min()}")
@@ -54,7 +56,7 @@ class TestScoary(TestCase):
         _, genes_df = load_genes(get_path('new_ds', 'genes-hog'), gene_data_type='gene-list:\t')
         ltt = generate_fake_traits(genes_df)
         start = datetime.now()
-        result_df = init_result_df(genes_df, label_to_trait=ltt)
+        result_df = init_result_df(genes_df, trait_series=ltt)
         end = datetime.now()
         print(result_df)
         print('took:', end - start)

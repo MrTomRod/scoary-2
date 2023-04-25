@@ -3,7 +3,7 @@ from functools import cache
 from numba import njit
 import numpy as np
 import pandas as pd
-from scipy.stats import binom_test
+from scipy.stats import binomtest
 
 from .ScoaryTree import ScoaryTree
 
@@ -147,10 +147,9 @@ def pick_nonrecursive(
 
 
 @cache
-def _binomtest(x: int, n: int) -> float:
+def _binomtest(k: int, n: int) -> float:
     # caching this function increases speed ~ 40x
-    # older (deprecated) function binom_test is faster than newer binomtest
-    return binom_test(x, n=n)
+    return binomtest(k=k, n=n).pvalue
 
 
 def apply_binomtest(max_contr, max_suppo, max_oppos):
