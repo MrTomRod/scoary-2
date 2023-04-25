@@ -36,7 +36,7 @@ if (!urlParams.has('trait')) {
     throw Error(msg)
 }
 const trait = urlParams.get('trait')
-document.title = `${trait} (Scoary 2)`
+document.title = `${trait} (Scoary2)`
 
 
 /**

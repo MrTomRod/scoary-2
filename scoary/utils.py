@@ -1,3 +1,4 @@
+import importlib.metadata
 import os
 import sys
 import json
@@ -9,6 +10,7 @@ from typing import Type, Any, Callable
 from datetime import datetime
 import numpy as np
 import pandas as pd
+from importlib.metadata import version
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 ALLOWED_CORRECTIONS = {'native', 'bonferroni', 'sidak', 'holm-sidak', 'holm', 'simes-hochberg', 'hommel', 'fdr_bh',
@@ -33,6 +35,14 @@ try:
 except ImportError as e:
     def print_tree(scoary_tree, label_to_gene: {str: bool}, label_to_trait: {str: bool}):
         raise ImportError('This function requires the ete3 library. Please install via "pip install ete3"')
+
+
+@cache
+def get_version() -> str:
+    try:
+        return version('scoary-2')
+    except importlib.metadata.PackageNotFoundError:
+        return 'development'
 
 
 class NotSplittableError(Exception):

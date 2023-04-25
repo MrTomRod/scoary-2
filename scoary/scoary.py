@@ -30,9 +30,10 @@ def scoary(
         gene_data_type: str = 'gene-count:,',
         random_state: int = None,
         limit_traits: (int, int) = None,
+        version: bool = False  # Dummy variable, only used to create docstring (see main function)
 ) -> None:
     """
-    Scoary 2: Associate genes with traits!
+    Scoary2: Associate genes with traits!
 
     :param genes: Path to gene presence/absence table: columns=isolates, rows=genes
     :param traits: Path to trait presence/absence table: columns=traits, rows=isolates
@@ -64,8 +65,9 @@ def scoary(
      OrthoFinder N0.tsv table
     :param random_state: Set a fixed seed for the random number generator
     :param limit_traits: Limit the analysis to traits n to m. Useful for debugging. Example: "(0, 10)"
+    :param version: Print software version of Scoary2 and exit.
     """
-    print('Welcome to Scoary 2!')
+    print(f'Welcome to Scoary2! ({get_version()})')
 
     # parse input, create outdir, setup logging
     trait_data_type = decode_unicode(trait_data_type)
@@ -74,6 +76,7 @@ def scoary(
         n_cpus_binarization = 1 + n_cpus // 10
     outdir = setup_outdir(outdir, input=locals())
     setup_logging(logger, f'{outdir}/logs/scoary-2.log')
+    logger.debug(f'Scoary2 Version: {get_version()}')
     mt_f_method, mt_f_cutoff = parse_correction(multiple_testing)
     assert n_permut == 0 or n_permut >= 100, f'{n_permut=} must be at least 100.'
 
@@ -255,7 +258,7 @@ def create_duplication_df(traits_df: pd.DataFrame) -> pd.Series:
     return duplication_df
 
 
-CITATION = '''
+CITATION = f'''
   ██████  ▄████▄   ▒█████   ▄▄▄       ██▀███ ▓██   ██▓   ░▒█████▒░ 
 ▒██    ▒ ▒██▀ ▀█  ▒██▒  ██ ▒████▄    ▓██   ██ ▒██  ██▒   ▒█▒   ██▒░
 ░ ▓██▄   ▒▓█    ▄ ▒██░  ██ ▒██  ▀█▄  ▓██ ░▄█   ▒██ ██░       ░█▀   
@@ -269,15 +272,19 @@ CITATION = '''
                         Microbial Pan-GWAS
 
 
-If you use Scoary 2, please cite:
-Roder T, Brynildsrud O, ... Title title title title title title
-title title title title title title.
-Journal. 2022;00:000.
+If you use Scoary2 ({get_version()}), please cite:
+Roder, T. et al. Scoary2: Rapid association of phenotypic multi-omics 
+data with microbial pan-genomes.
+BioRxiv (2023) doi:10.1101/2023.04.19.537353.
 '''.strip('\n')
 
 
 def main():
-    import fire
+    import sys, fire
+
+    if '--version' in sys.argv:
+        print(f'{get_version()}')
+        exit(0)
 
     fire.Fire(scoary)
 
