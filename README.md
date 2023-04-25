@@ -20,3 +20,10 @@ association per trait. The results can be explored interactively with a simple, 
 
 [orthofinder]: https://github.com/davidemms/OrthoFinder/
 [roary]: https://sanger-pathogens.github.io/Roary/
+
+# Paper
+
+The Scoary2 preprint is now available on bioRxiv. Click [here](https://www.biorxiv.org/content/10.1101/2023.04.19.537353v1)) to see it!
+
+> Roder, T. _et al._ Scoary2: Rapid association of phenotypic multi-omics data with microbial pan-genomes.
+> _BioRxiv_ (2023) doi:10.1101/2023.04.19.537353.
