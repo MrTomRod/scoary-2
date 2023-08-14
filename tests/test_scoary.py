@@ -25,6 +25,7 @@ class TestScoary(TestCase):
             genes=get_path('tetracycline', 'genes'),
             traits=get_path('tetracycline', 'traits'),
             n_permut=10000,
+            multiple_testing='native:0.05',
             n_cpus=1,
             outdir=self.tempdir
         )
@@ -139,7 +140,7 @@ class TestScoary(TestCase):
             random_state=42,
             n_cpus=8,
             n_cpus_binarization=1,
-            # restrict_to=RESTRICT_TO,
+            restrict_to=RESTRICT_TO,
             max_genes=50,
             # limit_traits=(12377, 12378),
             # limit_traits=(2000, 2400),
@@ -217,5 +218,17 @@ class TestScoary(TestCase):
             newicktree='../data/huge_ds/tree.nwk',
             n_permut=1000,
             n_cpus=4,
+            outdir=self.tempdir
+        )
+
+    def test_scoary_roary_gene_list(self):
+        # GitHub issue #5
+        scoary(
+            genes=get_path('roary-list', 'genes'),
+            traits=get_path('roary-list', 'traits'),
+            gene_data_type='gene-list:,',
+            n_permut=1000,
+            multiple_testing='native:0.05',
+            n_cpus=1,
             outdir=self.tempdir
         )

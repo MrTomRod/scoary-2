@@ -38,8 +38,9 @@ def load_gene_count_file(
     Load Roary-style gene count file with columns=strains and rows=genes
 
     :param path: Path to file
-    :param delimiter: delimiter
-    :param start_col: how many columns to skip
+    :param delimiter: delimiter of the file
+    :param restrict_to: columns to keep, will drop all other columns
+    :param ignore: columns to ignore
     :return: genes_df (DataFrame, dtype: bool); columns: strains; index: genes
     """
     count_df = pd.read_csv(path, delimiter=delimiter, index_col=0)
@@ -69,6 +70,7 @@ def load_gene_count_file(
 
 def load_gene_list_file(
         path: str,
+        delimiter: str,
         restrict_to: [str] = None,
         ignore: [str] = None
 ) -> (pd.DataFrame, pd.DataFrame):
@@ -76,9 +78,12 @@ def load_gene_list_file(
     Load Orthofinder-style gene list file with columns=strains and rows=genes
 
     :param path: Path to file
+    :param delimiter: delimiter of the file
+    :param restrict_to: columns to keep, will drop all other columns
+    :param ignore: columns to ignore
     :return: genes_df (DataFrame, dtype: bool); columns: strains; index: genes
     """
-    list_df = pd.read_csv(path, delimiter='\t', index_col=0, dtype=str)
+    list_df = pd.read_csv(path, delimiter=delimiter, index_col=0, dtype=str)
 
     # remove columns that are not in traits_df
     if restrict_to is not None or ignore is not None:
@@ -141,7 +146,7 @@ def load_genes(
     if data_type == 'gene-count':
         genes_orig_df, genes_bool_df = load_gene_count_file(genes, delimiter, restrict_to, ignore)
     elif data_type == 'gene-list':
-        genes_orig_df, genes_bool_df = load_gene_list_file(genes, restrict_to, ignore)
+        genes_orig_df, genes_bool_df = load_gene_list_file(genes, delimiter, restrict_to, ignore)
     else:
         raise AssertionError(f'Programming error: {data_type=} must be gene-count or gene-list!')
 

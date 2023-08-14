@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "scoary-2"
-version = "0.0.11"
+version = "0.0.12"
 description = "Scoary2: Associate genes with traits!"
 authors = ["MrTomRod <roder.thomas@gmail.com>"]
 license = "GPL3"

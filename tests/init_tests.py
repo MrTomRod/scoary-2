@@ -62,7 +62,10 @@ DATA = {
         'traits': 'traits.tsv',
         'trait-info': 'trait_info.tsv',
     },
-
+    'roary-list': {
+        'genes': 'gene_presence_absence.csv',
+        'traits': 'traits.csv',
+    },
 }
 
 VCF_DATA = {
