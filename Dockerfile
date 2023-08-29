@@ -1,11 +1,21 @@
-FROM continuumio/miniconda3
+FROM python:3.10-slim-bullseye
 
-RUN conda install gcc_linux-64 gxx_linux-64 python=3.10
-RUN ln -s /opt/conda/bin/x86_64-conda_cos7-linux-gnu-gcc /usr/bin/gcc
+
+RUN apt-get update && \
+    apt-get install -y build-essential && \
+    apt-get clean
 
 ARG SCOARY_VERSION
-RUN pip install scoary-2==$SCOARY_VERSION && \
-    pip cache purge
+
+# to build from local sources, use the lines below:
+COPY dist/*$SCOARY_VERSION* /tmp/scoary/
+RUN pip install -U /tmp/scoary/scoary_2-$SCOARY_VERSION-py3-none-any.whl && \
+    pip cache purge && \
+    rm -rf /tmp/scoary
+
+# to build from pip, use this:
+# RUN pip install scoary-2==$SCOARY_VERSION && \
+#     pip cache purge
 
 # set these environment variables to directories where non-root is allowed to write
 ENV NUMBA_CACHE_DIR=/tmp/NUMBA_CACHE_DIR

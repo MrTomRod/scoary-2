@@ -67,6 +67,8 @@ def load_binary(traits: str, delimiter: str, restrict_to: str = None, ignore: st
     traits_df.attrs['binarization_method'] = 'none'
     traits_df.attrs['binarization_info'] = 'none'
 
+    # make sure index is string and name of index is Isolate
+    traits_df.index = traits_df.index.astype('str')
     traits_df.index.name = 'Isolate'
 
     logger.debug(f'Loaded binary traits_df:\n{traits_df}')
@@ -94,6 +96,8 @@ def load_numeric(traits: str, delimiter: str, restrict_to: str = None, ignore: s
 
     numeric_df = filter_df(numeric_df, restrict_to, ignore)
 
+    # make sure index is string and name of index is Isolate
+    numeric_df.index = numeric_df.index.astype('str')
     numeric_df.index.name = 'Isolate'
 
     logger.debug(f'Loaded numeric_df:\n{numeric_df}')

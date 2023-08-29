@@ -31,10 +31,11 @@ class Test(TestCase):
         for method, n_expected_columns in [('gaussian', 1), ('kmeans', 2)]:
             binary_df = binarize(
                 numeric_df, method=method, random_state=42, n_cpus=1,
-                cutoff=0.999, covariance_type='full',
+                cutoff=0.9998, covariance_type='full',
                 alternative='skip', outdir=None
             )
-            self.assertEqual(len(binary_df.columns), n_expected_columns)
+            self.assertEqual(n_expected_columns, len(binary_df.columns),
+                             f'{method=}; {n_expected_columns=}; {binary_df.columns=}')
 
     def test_illegal(self):
         with self.assertRaises(AssertionError):
@@ -51,5 +52,6 @@ class Test(TestCase):
                 get_path('new_ds', 'traits-lc'),
                 trait_data_type='gaussian:skip:\t',
                 ignore='Starter-only-5A,FAMIX,Starter-only-10,Starter-only-7,mixture',
-                n_cpus=n_cpus, limit_traits=(0, 10)
+                n_cpus=n_cpus, limit_traits=(0, 10),
+                outdir=f'{ROOT}/TEST_OUTPUT'
             )

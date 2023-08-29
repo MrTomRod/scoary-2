@@ -1,7 +1,3 @@
-from unittest import TestCase
-
-import pandas as pd
-
 from init_tests import *
 
 from scoary.load_genes import load_genes
@@ -16,8 +12,14 @@ class Test(TestCase):
         print(orig_data, binary_data)
 
     def test_list(self):
-        orig_data, binary_data = load_genes(get_path('new_ds', 'genes-og'), gene_data_type='gene-list')
+        orig_data, binary_data = load_genes(
+            get_path('new_ds', 'genes-og'),
+            gene_data_type='gene-list:\t'
+        )
         print(orig_data, binary_data)
-        orig_data, binary_data = load_genes(get_path('new_ds', 'genes-hog'), gene_data_type='gene-list',
-                                            ignore=orthofinder_ignore)
+        orig_data, binary_data = load_genes(
+            get_path('new_ds', 'genes-hog'),
+            gene_data_type='gene-list:\t',
+            ignore=orthofinder_ignore
+        )
         print(orig_data, binary_data)
