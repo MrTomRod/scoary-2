@@ -3,6 +3,8 @@ from datetime import datetime, timedelta
 from textwrap import shorten
 import logging
 
+SCOARY_PRINT_PROGRESS = os.environ.get('SCOARY_PRINT_PROGRESS', 'TRUE').upper() == 'TRUE'
+
 # can os determine the terminal size?
 try:
     n_cols = os.get_terminal_size().columns
@@ -50,6 +52,9 @@ def print_progress(
         sep: str = ' | ',
         end: str = LINEBREAK_CHAR
 ) -> None:
+    if not SCOARY_PRINT_PROGRESS:
+        return
+
     message = f"{shorten(message, width=message_width, placeholder='...'):{message_width}s}"
     assert len(message) == message_width
 

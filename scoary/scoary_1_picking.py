@@ -424,3 +424,64 @@ def permute_gtc(GTC):
         # gene status intact
         GTC[isolate] = str(GTC[isolate][0] + trait_labels.pop())
     return GTC
+
+
+def permute(tree, GTC, permutations, cutoffs):
+    """
+    A method used to permute the GTC dataset by label-switching a given
+    number of times and calculate corresponding pairwise comparisons
+    p-values for each PhyloTree. Finally, it returns the percentile of
+    the unpermuted dataset p-value in the set of ordered p-values
+    resulting from the permutation.
+    """
+    ## THIS LOOP IS SPECIFIC TO ONE GENE
+    ## GTC: {'strain1': 'ab', 'strain2': 'ab', 'strain3': 'Ab', 'strain4': 'ab', 'strain5': 'AB', 'strain6': 'AB', 'strain7': 'aB', 'strain8': 'AB'}
+
+    proceed = True
+    # Guard the original GTC against changes by making a copy
+    GTCcopy = dict(GTC)
+    # r is the number of replicates with a larger test statistic than
+    # the unpermuted
+    r = 0
+    _MyPhyloTree_, Unpermuted_tree = convert_upgma_to_phylotree(tree, GTCcopy)
+
+    # Find out if we're after propairs or antipairs - which is more
+    # common and would thus give the high test statistic?
+
+    if Unpermuted_tree["Pro"] >= Unpermuted_tree["Anti"]:
+        Pro = "Pro"
+    else:
+        Pro = "Anti"
+    Unpermuted_estimator = (float(Unpermuted_tree[Pro]) /
+                            Unpermuted_tree["Total"])
+
+    if permutations < 10:
+        # The program is never supposed to go here since fewer than 10
+        # permutations are globally disallowed
+        sys.stdout.write("Number of permutations too few. The absolute "
+                         "minimum is 10.")
+        proceed = False
+
+    if proceed:
+        for i in range(permutations):
+            # Make a permutation using random.shuffle
+            PermutedGTC = permute_gtc(GTCcopy)
+            # Send new set to phylotree
+            _MyPhyloTree_, NewPhyloTree = convert_upgma_to_phylotree(tree, PermutedGTC)
+            if (float(NewPhyloTree[Pro]) / NewPhyloTree["Total"] >=
+                    Unpermuted_estimator):
+                r += 1
+
+            # Check how many estimators are higher than the unpermuted
+            # If, after more than 30 iterations, r indicates a p > 0.1,
+            # abort
+            if i >= 30:
+                if (1 - ss.binom.cdf(r, i, 0.1)) < 0.05:
+                    emp_p = (r + 1.0) / (i + 2.0)
+                    break
+        else:
+            emp_p = (r + 1.0) / (permutations + 1.0)
+    else:
+        return None
+
+    return emp_p

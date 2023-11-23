@@ -4,6 +4,8 @@ from init_tests import *
 
 from scoary.scoary import *
 
+os.environ['MGWAS_LINK_ONLY'] = 'true'
+
 RESTRICT_TO = 'FAM14177-p1-1.1,FAM14184-i1-1.1,FAM14193-i1-1.1,FAM14197-i1-1.1,FAM14217-p1-1.1,FAM14221-p1-1.1,' \
               'FAM14222-p1-1.1,FAM1414-i1-1.1,FAM15061-i1-1.1,FAM15078-i1-1.1,FAM15113-i1-1.1,FAM15170-i1-1.1,' \
               'FAM15190-i1-1.1,FAM15192-i1-1.1,FAM15300-i1-1.1,FAM15333-i1-1.1,FAM15346-i1-1.1,FAM15347-i1-1.1,' \
@@ -70,7 +72,7 @@ class TestScoary(TestCase):
         scoary(
             genes=get_path('new_ds', 'genes-hog'),
             gene_info=get_path('new_ds', 'genes-hog-info'),
-            gene_data_type='gene-list:2',
+            gene_data_type='gene-list:\t',
             traits=get_path('new_ds', 'traits-lc'),
             trait_data_type=f'gaussian:skip:\t:tied',  # {'tied', 'full', 'diag', 'spherical'}
             trait_info=get_path('new_ds', 'traits-lc-meta'),
@@ -81,15 +83,15 @@ class TestScoary(TestCase):
             random_state=42,
             n_cpus=7,
             outdir=self.tempdir,
-            limit_traits=(0, 20),
-            pairwise=False
+            limit_traits=(0, 200),
+            pairwise=True
         )
 
     def test_scoary_gauss_kmeans(self):
         scoary(
             genes=get_path('new_ds', 'genes-hog'),
             gene_info=get_path('new_ds', 'genes-hog-info'),
-            gene_data_type='gene-list:2',
+            gene_data_type='gene-list:\t',
             traits=get_path('new_ds', 'traits-lc'),
             trait_data_type=f'gaussian:kmeans:\t',
             trait_info=get_path('new_ds', 'traits-lc-meta'),
@@ -99,7 +101,7 @@ class TestScoary(TestCase):
             random_state=42,
             n_cpus=7,
             outdir=self.tempdir,
-            limit_traits=(0, 100),
+            # limit_traits=(0, 100),
             # pairwise=False
         )
 
@@ -120,7 +122,7 @@ class TestScoary(TestCase):
             # restrict_to=RESTRICT_TO,
             max_genes=50,
             # limit_traits=(12377, 12378),
-            # limit_traits=(2000, 2400),
+            limit_traits=(2000, 2400),
             # limit_traits=(2330, 2340),
             worst_cutoff=0.1,
             outdir=self.tempdir,
@@ -128,6 +130,7 @@ class TestScoary(TestCase):
 
     def test_scoary_real_restr(self):
         scoary(
+            multiple_testing_many_traits='bonferroni',
             multiple_testing='bonferroni:0.1',
             genes=get_path('full_ds', 'genes'),
             gene_info=get_path('full_ds', 'gene-info'),
@@ -143,8 +146,8 @@ class TestScoary(TestCase):
             restrict_to=RESTRICT_TO,
             max_genes=50,
             # limit_traits=(12377, 12378),
-            # limit_traits=(2000, 2400),
-            # limit_traits=(2330, 2340),
+            limit_traits=(2000, 2400),
+            # limit_traits=(2330, 2340),  # lc:Compound_7866
             worst_cutoff=0.1,
             outdir=self.tempdir,
         )
@@ -223,9 +226,18 @@ class TestScoary(TestCase):
 
     def test_scoary_roary_gene_list(self):
         # GitHub issue #5
+        # scoary(
+        #     genes=get_path('roary-list', 'genes'),
+        #     traits=get_path('roary-list', 'traits'),
+        #     gene_data_type='gene-list:,',
+        #     n_permut=1000,
+        #     multiple_testing='native:0.05',
+        #     n_cpus=1,
+        #     outdir=self.tempdir
+        # )
         scoary(
-            genes=get_path('roary-list', 'genes'),
-            traits=get_path('roary-list', 'traits'),
+            genes=get_path('roary-list', 'genes').replace('.csv', '-b.csv'),
+            traits=get_path('roary-list', 'traits').replace('.csv', '-b.csv'),
             gene_data_type='gene-list:,',
             n_permut=1000,
             multiple_testing='native:0.05',

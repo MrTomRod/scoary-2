@@ -4,7 +4,7 @@ from .ScoaryTree import ScoaryTree
 from .load_genes import load_genes
 from .load_traits import load_traits
 from .final_overview import create_final_overview
-from .analyze_trait import analyze_trait, worker
+from .analyze_trait import analyze_trait, worker, multiple_testing_correction
 
 logger = logging.getLogger('scoary')
 
@@ -14,6 +14,7 @@ def scoary(
         traits: str,
         outdir: str,
         multiple_testing: str = 'bonferroni:0.999',
+        multiple_testing_many_traits: str = 'bonferroni:1',
         worst_cutoff: float = None,
         max_genes: int = None,
         gene_info: str = None,
@@ -28,6 +29,12 @@ def scoary(
         n_cpus_binarization: int = None,
         trait_data_type: str = 'binary:,',
         gene_data_type: str = 'gene-count:,',
+        force_binary_clustering: bool = False,
+        symmetric: bool = True,
+        distance_metric: str = 'jaccard',
+        linkage_method: str = 'ward',
+        optimal_ordering: bool = True,
+        corr_method: str = 'pearson',
         random_state: int = None,
         limit_traits: (int, int) = None,
         version: bool = False  # Dummy variable, only used to create docstring (see main function)
@@ -38,10 +45,18 @@ def scoary(
     :param genes: Path to gene presence/absence table: columns=isolates, rows=genes
     :param traits: Path to trait presence/absence table: columns=traits, rows=isolates
     :param outdir: Directory to place output files
-    :param multiple_testing: "method:cutoff" for filtering genes after Fisher's test, where cutoff is a number that
-    specifies the FWER and method is one of [native, bonferroni, sidak, holm-sidak, holm, simes-hochberg, hommel,
-    fdr_bh, fdr_by,  fdr_tsbh, fdr_tsbky]. Alternatively, the method can be 'native': then, the cutoff targets the
-    uncorrected p-value from Fisher's test.
+    :param multiple_testing:
+    Apply multiple testing to the p-value of Fisher's test to account for the many genes tested.
+    Format: "method:cutoff".
+    Cutoff is a number that specifies the FWER and method is one of [native, bonferroni, sidak, holm-sidak, holm,
+    simes-hochberg, hommel, fdr_bh, fdr_by,  fdr_tsbh, fdr_tsbky].
+    If method is 'native': then, the cutoff targets the uncorrected p-value from Fisher's test.
+    :param multiple_testing_many_traits:
+    Apply multiple testing to the p-value of Fisher's test to account for the many traits tested.
+    Format: "method:cutoff".
+    Cutoff is a number that specifies the FWER and method is one of [native, bonferroni, sidak, holm-sidak, holm,
+    simes-hochberg, hommel, fdr_bh, fdr_by,  fdr_tsbh, fdr_tsbky].
+    If method is 'native': then, the cutoff targets the uncorrected p-value.
     :param worst_cutoff: Drop traits if no gene with "worst" p-value lower than threshold. Recommended if
     dataset contains multiple species
     :param max_genes: Keep only n highest-scoring genes in Fisher's test. Recommended if dataset is big and contains
@@ -63,11 +78,19 @@ def scoary(
      table. Example: "gene-list:\\t" for OrthoFinder N0.tsv table
     :param gene_data_type: "<data_type>:<?delimiter>" How to read the genes table. Example: "gene-list:\\t" for
      OrthoFinder N0.tsv table
+    :param force_binary_clustering: Force clustering of binary data even if numeric data is available
+    :param symmetric: if True, correlated and anti-correlated traits will cluster together
+    :param distance_metric: distance metric (binary data only); See metric in https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.cdist.html
+    :param linkage_method: linkage method for clustering [single, complete, average, weighted, ward, centroid, median]
+    :param optimal_ordering: whether to use optimal ordering; See scipy.cluster.hierarchy.linkage.
+    :param corr_method: correlation method (numeric data only) [pearson, kendall, spearman]
     :param random_state: Set a fixed seed for the random number generator
     :param limit_traits: Limit the analysis to traits n to m. Useful for debugging. Example: "(0, 10)"
     :param version: Print software version of Scoary2 and exit.
     """
-    print(f'Welcome to Scoary2! ({get_version()})')
+    SCOARY_PRINT_CITATION = os.environ.get('SCOARY_PRINT_CITATION', 'TRUE') == 'TRUE'
+    if SCOARY_PRINT_CITATION:
+        print(f'Welcome to Scoary2! ({get_version()})')
 
     # parse input, create outdir, setup logging
     trait_data_type = decode_unicode(trait_data_type)
@@ -75,9 +98,12 @@ def scoary(
     if n_cpus_binarization is None:
         n_cpus_binarization = 1 + n_cpus // 10
     outdir = setup_outdir(outdir, input=locals())
+
     setup_logging(logger, f'{outdir}/logs/scoary-2.log')
+
     logger.debug(f'Scoary2 Version: {get_version()}')
-    mt_f_method, mt_f_cutoff = parse_correction(multiple_testing)
+    mt_f_method, mt_f_cutoff = parse_correction(multiple_testing, 'multiple_testing')
+    mt_manytraits_f_method, mt_manytraits_f_cutoff = parse_correction(multiple_testing_many_traits, 'multiple_testing_many_traits')
     assert n_permut == 0 or n_permut >= 100, f'{n_permut=} must be at least 100.'
 
     # start
@@ -141,7 +167,8 @@ def scoary(
 
     all_labels = set(tree.labels())
 
-    duplication_df = create_duplication_df(traits_df)
+    duplicates = find_duplicates(traits_df)
+    n_traits_tested = len(traits_df.columns) - len(duplicates)
 
     logger.info('Finalizing setup...')
     if n_cpus == 1:
@@ -161,7 +188,8 @@ def scoary(
         'numeric_df': numeric_df,
         'traits_df': traits_df,
         'trait_info_df': trait_info,
-        'duplication_df': duplication_df,
+        'duplicates': duplicates,
+        'n_traits_tested': n_traits_tested,
         'tree': tree,
         'all_labels': all_labels,
         'mt_f_method': mt_f_method,
@@ -195,10 +223,23 @@ def scoary(
         message='COMPLETE!', start_time=ns.start_time, message_width=25,
         end='\n'
     )
-    logging.info(f'Picking took {picking_end - picking_start}')
+    logger.info(f'Picking took {picking_end - picking_start}')
     try:
         summary_df = create_summary_df(trait_to_result)
-        create_final_overview(summary_df, ns, isolate_info)
+
+        # ToDo: Consider doing multiple testing for traits here instead of in analyze_trait
+        summary_df = summary_df.sort_values(by='best_fq*ep', ascending=False)
+        # Apply multiple testing correction to columns best_fisher_q
+        summary_df['best_fisher_q'] = multiple_testing_correction(
+            test_df, column='best_fisher_q', new_column='best_fisher_q',
+            method=ns.multiple_testing_many_traits, cutoff=ns.mt_f_cutoff, is_sorted=True
+        )
+        # Apply multiple testing correction to columns best_fq*ep if column exists
+        if 'best_fq*ep' in summary_df.columns:
+            summary_df['best_fq*ep'] = 0  # todo
+
+        create_final_overview(summary_df, ns.traits_df, ns.numeric_df, ns.outdir, ns.trait_info_df, isolate_info,
+                              force_binary_clustering, symmetric, distance_metric, linkage_method, optimal_ordering, corr_method)
 
         logger.info('Complete success!')
 
@@ -207,7 +248,8 @@ def scoary(
 
     logger.debug(f'Took {datetime.now() - start_time}')
 
-    print(CITATION)
+    if SCOARY_PRINT_CITATION:
+        print(CITATION)
 
 
 def create_summary_df(trait_to_result: {str: [dict | str | None]}) -> pd.DataFrame | None:
@@ -222,10 +264,10 @@ def create_summary_df(trait_to_result: {str: [dict | str | None]}) -> pd.DataFra
     :param trait_to_result: dictionary where keys are trait names and values are either dict|str|None
     :return: pandas.DataFrame
     """
-    # res may contain: float, str or None
-    # float: smallest empirical pvalue
-    # str: duplicated trait -> name of trait
-    # None: no gene was significant
+    # res may contain: float, str or None:
+    #  - float: smallest empirical pvalue
+    #  - str:   duplicated trait -> name of trait
+    #  - None:  no gene was significant
 
     trait_to_result = {t: trait_to_result[r] if type(r) is str else r for t, r in
                        trait_to_result.items()}  # restore duplicates
@@ -242,7 +284,7 @@ def create_summary_df(trait_to_result: {str: [dict | str | None]}) -> pd.DataFra
     return summary_df
 
 
-def create_duplication_df(traits_df: pd.DataFrame) -> pd.Series:
+def find_duplicates(traits_df: pd.DataFrame) -> pd.Series:
     """
     Returns a pd.Series that maps duplicated traits to the first occurrence
     """
@@ -251,11 +293,11 @@ def create_duplication_df(traits_df: pd.DataFrame) -> pd.Series:
     hash_df['is_duplicated'] = hash_df['hash'].duplicated(keep=False)
     hash_df['use_cache'] = hash_df['hash'].duplicated(keep='first')
     lookup_df = hash_df[hash_df['is_duplicated'] & ~hash_df['use_cache']].sort_values(by='hash')
-    duplication_df = hash_df[hash_df['use_cache']]
-    duplication_df = duplication_df['hash'].apply(
+    duplicates = hash_df[hash_df['use_cache']]
+    duplicates = duplicates['hash'].apply(
         func=lambda h: lookup_df.iloc[lookup_df.hash.searchsorted(h)].name
     )
-    return duplication_df
+    return duplicates
 
 
 CITATION = f'''

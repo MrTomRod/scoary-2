@@ -85,8 +85,10 @@ class Test(TestCase):
         self.fake_ns.traits_df = pd.read_csv('../data/traits_df.tsv', sep='\t', index_col=0, dtype='str') == 'True'
         create_final_overview(
             summary_df=summary_df,
-            ns=self.fake_ns
+            traits_df=self.fake_ns.traits_df,
+            outdir=self.fake_ns.outdir
         )
+
 
     def test_understand_jaccard(self):
         from scipy.spatial.distance import cdist

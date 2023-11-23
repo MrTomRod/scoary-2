@@ -12,42 +12,7 @@ from scoary.scoary_1_picking import *
 
 from timeit import default_timer as timer
 
-
-def time_fn(fn: Callable, args=None, kwargs=None, n_times: int = 1) -> (float, Any):
-    if kwargs is None:
-        kwargs = {}
-    if args is None:
-        args = []
-
-    diffs = []
-    for i in range(n_times):
-        start = timer()
-        res = fn(*args, **kwargs)
-        end = timer()
-        diffs.append(end - start)  # Time in seconds, e.g. 5.38091952400282
-    return np.mean(diffs), res
-
-
 boolify = lambda t1, t2: f"{'A' if t1 else 'a'}{'B' if t2 else 'b'}"
-
-
-def scoary_1_pick(tree: [], label_to_trait_a: {str: bool}, trait_b_df: pd.DataFrame):
-    labels = set(trait_b_df.columns)
-
-    max_contrasting = np.empty(shape=len(trait_b_df), dtype='int')
-    max_supporting = np.empty(shape=len(trait_b_df), dtype='int')
-    max_opposing = np.empty(shape=len(trait_b_df), dtype='int')
-
-    for i, (_, label_to_trait) in enumerate(trait_b_df.iterrows()):
-        gtc = {l: boolify(label_to_trait_a[l], label_to_trait[l]) for l in labels}
-        phylo_tree, result_dict = convert_upgma_to_phylotree(tree, gtc)
-
-        max_contrasting[i] = result_dict['Total']
-        max_supporting[i] = result_dict['Pro']
-        max_opposing[i] = result_dict['Anti']
-
-    return max_contrasting, max_supporting, max_opposing
-
 
 dummy_tree = [['isolate1', 'isolate2'], ['isolate3', 'isolate4']]
 
@@ -70,6 +35,39 @@ dummy_trait_b_df = pd.DataFrame(
         [False, True, False, True],
     ], columns=['isolate1', 'isolate2', 'isolate3', 'isolate4']
 )
+
+
+def time_fn(fn: Callable, args=None, kwargs=None, n_times: int = 1) -> (float, Any):
+    if kwargs is None:
+        kwargs = {}
+    if args is None:
+        args = []
+
+    diffs = []
+    for i in range(n_times):
+        start = timer()
+        res = fn(*args, **kwargs)
+        end = timer()
+        diffs.append(end - start)  # Time in seconds, e.g. 5.38091952400282
+    return np.mean(diffs), res
+
+
+def scoary_1_pick(tree: [], label_to_trait_a: {str: bool}, trait_b_df: pd.DataFrame):
+    labels = set(trait_b_df.columns)
+
+    max_contrasting = np.empty(shape=len(trait_b_df), dtype='int')
+    max_supporting = np.empty(shape=len(trait_b_df), dtype='int')
+    max_opposing = np.empty(shape=len(trait_b_df), dtype='int')
+
+    for i, (_, label_to_trait) in enumerate(trait_b_df.iterrows()):
+        gtc = {l: boolify(label_to_trait_a[l], label_to_trait[l]) for l in labels}
+        phylo_tree, result_dict = convert_upgma_to_phylotree(tree, gtc)
+
+        max_contrasting[i] = result_dict['Total']
+        max_supporting[i] = result_dict['Pro']
+        max_opposing[i] = result_dict['Anti']
+
+    return max_contrasting, max_supporting, max_opposing
 
 
 class Test(TestCase):
@@ -109,6 +107,9 @@ class Test(TestCase):
         self.assertTrue(all(np.equal(mo_1, mo_2)), msg='opposing')
 
     def test_benchmark_tetracycline(self, run_scoary_1=True):
+        # Scoary1 took 23.241052357999614 sec
+        # Scoary2 took 0.49214521629996855 sec
+        # Scoary1 vs Scoary2: 47.22397290118921x improvement
         tetr_tree = get_json('tetracycline', 'treelist')['as_list']
         _, tetr_genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count',
                                       ignore=roary_ignore)
@@ -149,6 +150,9 @@ class Test(TestCase):
             self.assertTrue(all(np.equal(mo_1, mo_2)), msg='opposing')
 
     def test_tetracycline_norecursive(self, run_scoary_1=True):
+        # Scoary1 took 23.021255266200022 sec
+        # Scoary2nonrec took 0.5782416850000118 sec
+        # Scoary1 vs Scoary2nonrec: 39.81251415002976x improvement
         tetr_tree = get_json('tetracycline', 'treelist')['as_list']
         _, tetr_genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count',
                                       ignore=roary_ignore)

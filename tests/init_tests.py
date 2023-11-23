@@ -103,10 +103,10 @@ def is_equivalent_tree(a, b) -> bool:
         return a == b
     else:
         return (
-                       is_equivalent_tree(a[0], b[0]) and is_equivalent_tree(a[1], b[1])
-               ) or (
-                       is_equivalent_tree(a[0], b[1]) and is_equivalent_tree(a[1], b[0])
-               )
+                is_equivalent_tree(a[0], b[0]) and is_equivalent_tree(a[1], b[1])
+        ) or (
+                is_equivalent_tree(a[0], b[1]) and is_equivalent_tree(a[1], b[0])
+        )
 
 
 def get_tempdir_path() -> str:

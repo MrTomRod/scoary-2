@@ -57,10 +57,10 @@ def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) ->
             message=message, start_time=ns.start_time, message_width=25
         )
 
-    if trait in ns.duplication_df:
-        logger.debug(f'Duplicated trait: {trait} -> {ns.duplication_df[trait]}')
+    if trait in ns.duplicates:
+        logger.debug(f'Duplicated trait: {trait} -> {ns.duplicates[trait]}')
         save_duplicated_result(trait, ns)
-        return ns.duplication_df[trait]
+        return ns.duplicates[trait]
 
     trait_series = ns.traits_df[trait].dropna()
     labels = set(trait_series.index)
@@ -73,9 +73,10 @@ def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) ->
     result_df = init_result_df(ns.genes_bool_df, trait_series)
     test_df = create_test_df(result_df)
     test_df = add_odds_ratio(test_df)
-    test_df = perform_multiple_testing_correction(
-        test_df, col='fisher_p',
-        method=ns.mt_f_method, cutoff=ns.mt_f_cutoff, is_sorted=True
+    test_df = multiple_testing_correction(
+        test_df, column='fisher_p', new_column='fisher_q',
+        method=ns.mt_f_method, cutoff=ns.mt_f_cutoff, is_sorted=True,
+        multiple_testing_many_traits=ns.multiple_testing_many_traits, n_traits_tested=ns.n_traits_tested
     )
 
     if len(test_df) == 0:
@@ -141,9 +142,9 @@ def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) ->
 
 def _save_trait(trait: str, ns: AnalyzeTraitNamespace):
     trait_df = pd.DataFrame(index=ns.traits_df.index)
-    trait_df['class'] = ns.traits_df[trait]
+    trait_df['binary'] = ns.traits_df[trait]
     if ns.numeric_df is not None:
-        trait_df['value'] = ns.numeric_df[trait]
+        trait_df['numeric'] = ns.numeric_df[trait]
     trait_df.index.name = 'isolate'
     trait_df.to_csv(f'{ns.outdir}/traits/{trait}/values.tsv', sep='\t')
 
@@ -200,7 +201,7 @@ def save_duplicated_result(trait: str, ns: AnalyzeTraitNamespace):
     os.makedirs(f'{ns.outdir}/traits/{trait}')
 
     # use data from previous duplicate
-    ref_trait = ns.duplication_df[trait]
+    ref_trait = ns.duplicates[trait]
     for f in ['result.tsv', 'meta.json', 'coverage-matrix.tsv']:
         os.symlink(src=f'../{ref_trait}/{f}', dst=f'{ns.outdir}/traits/{trait}/{f}')
 
@@ -290,30 +291,40 @@ def add_odds_ratio(test_df: pd.DataFrame) -> pd.DataFrame:
     return test_df
 
 
-def perform_multiple_testing_correction(
-        test_df: pd.DataFrame,
+def multiple_testing_correction(
+        df: pd.DataFrame,
+        column: str,
+        new_column: str,
         method: str,
         cutoff: float,
-        col: str,
-        is_sorted=True
+        multiple_testing_many_traits: str = False,
+        n_traits_tested: int = None,
+        is_sorted: bool = False
 ) -> (float, pd.DataFrame):
-    assert 'fisher_p' in col
-    new_col = col.replace('fisher_p', 'fisher_q')
+    assert column in df.columns, f'{column=} must be in {df.columns=}!'
 
+    # Apply multiple testing correction for each trait here if bonferroni
+    if multiple_testing_many_traits == 'bonferroni':
+        pq_vals = df[column] * n_traits_tested
+    else:
+        pq_vals = df[column]
+
+    # Apply multiple testing correction for each orthogene
     if method == 'native':
-        reject = test_df[col] <= cutoff
-        _, qval, _, _ = multipletests(pvals=test_df[col], alpha=1, method='bonferroni', is_sorted=is_sorted)
+        reject = pq_vals <= cutoff
+        _, qval, _, _ = multipletests(pvals=pq_vals, alpha=1, method='bonferroni', is_sorted=is_sorted)
     else:
         reject, qval, alphac_sidak, alphac_bonf = multipletests(
-            pvals=test_df[col],
+            pvals=pq_vals,
             alpha=cutoff,
             method=method,
             is_sorted=is_sorted,
         )
 
-    test_df[new_col] = qval
-    test_df = test_df[reject]
-    return test_df
+    df[new_column] = qval
+    df = df[reject]
+
+    return df
 
 
 def pair_picking(result_df: pd.DataFrame, significant_genes_df: pd.DataFrame, tree: ScoaryTree,

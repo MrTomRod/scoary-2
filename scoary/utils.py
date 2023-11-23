@@ -78,7 +78,7 @@ def setup_logging(logger: logging.Logger, path: str = None, print_info: bool = T
     :param reset: if True: close and remove all file handlers. (Important for multiprocessing: removes locks!)
     :return:
     """
-    if reset:
+    if reset or os.environ.get('SCOARY_RESET_LOGGERS', 'FALSE').upper() == 'TRUE':
         while logger.handlers:
             handler = logger.handlers[0]
             handler.close()
@@ -96,7 +96,7 @@ def setup_logging(logger: logging.Logger, path: str = None, print_info: bool = T
     if print_info:
         # create streamhandler
         stdout = logging.StreamHandler()
-        stdout.setLevel(logging.INFO)
+        stdout.setLevel(getattr(logging, os.environ.get('SCOARY_LOGLEVEL_STDOUT', 'INFO').upper()))
         logger.addHandler(stdout)
 
     return logger
@@ -126,43 +126,18 @@ def ignore_warnings(warning: Type[Warning]):
     return decorator
 
 
-class RecursionLimit:
-    """
-    Context manager to temporarily change the recursion limit.
-
-    Example:
-
-    with RecursionLimit(10 ** 6):
-        some_function_that_requires_lots_of_recursions()
-    """
-    new: int
-    old: int
-
-    def __init__(self, new_recursion_limit: int):
-        self.new = new_recursion_limit
-
-    def __enter__(self):
-        self.old = sys.getrecursionlimit()
-        logger.debug(f'Setting new recursion limit: {self.old} -> {self.new}')
-        sys.setrecursionlimit(self.new)
-
-    def __exit__(self, *args, **kwargs):
-        logger.debug(f'Setting old recursion limit: {self.new} -> {self.old}')
-        sys.setrecursionlimit(self.old)
-
-
-def parse_correction(multiple_testing: str) -> (str, float):
-    if ':' in multiple_testing:
-        method, cutoff = multiple_testing.split(':', 1)
+def parse_correction(correction_str: str, param_name: str) -> (str, float):
+    if ':' in correction_str:
+        method, cutoff = correction_str.split(':', 1)
     else:
-        method, cutoff = multiple_testing, 'inf'
+        method, cutoff = correction_str, 'inf'
 
-    assert method in ALLOWED_CORRECTIONS, f'{multiple_testing=} must be in {ALLOWED_CORRECTIONS}'
+    assert method in ALLOWED_CORRECTIONS, f'{param_name}={correction_str} must be in {ALLOWED_CORRECTIONS}'
 
     try:
         cutoff = float(cutoff)
     except ValueError:
-        raise AssertionError(f'Error in {multiple_testing=}: {cutoff=} could not be converted to float')
+        raise AssertionError(f'Error in {correction_str=}: {cutoff=} could not be converted to float')
 
     return method, cutoff
 
@@ -314,7 +289,9 @@ class AnalyzeTraitNamespace(AbstractNamespace):
     numeric_df: pd.DataFrame
     traits_df: pd.DataFrame
     trait_info_df: pd.DataFrame | None
-    duplication_df: pd.DataFrame
+    multiple_testing_many_traits: str
+    duplicates: pd.DataFrame
+    n_traits_tested: int
     tree: object  #: ScoaryTree
     all_labels: set
     mt_f_method: str
