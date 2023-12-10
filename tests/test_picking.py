@@ -110,10 +110,10 @@ class Test(TestCase):
         # Scoary1 took 23.241052357999614 sec
         # Scoary2 took 0.49214521629996855 sec
         # Scoary1 vs Scoary2: 47.22397290118921x improvement
-        tetr_tree = get_json('tetracycline', 'treelist')['as_list']
-        _, tetr_genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count',
+        tetr_tree = get_json('../data/tetracycline/expected_result.json')['as_list']
+        _, tetr_genes_df = load_genes('../data/tetracycline/Gene_presence_absence.csv', gene_data_type='gene-count',
                                       ignore=roary_ignore)
-        _, tetr_traits_df = load_traits(get_path('tetracycline', 'traits'), trait_data_type='binary:,')
+        _, tetr_traits_df = load_traits('../data/tetracycline/Tetracycline_resistance.csv', trait_data_type='binary:,')
 
         tetr_label_to_gene = tetr_traits_df['Tetracycline_resistance'].to_dict()
 
@@ -153,10 +153,10 @@ class Test(TestCase):
         # Scoary1 took 23.021255266200022 sec
         # Scoary2nonrec took 0.5782416850000118 sec
         # Scoary1 vs Scoary2nonrec: 39.81251415002976x improvement
-        tetr_tree = get_json('tetracycline', 'treelist')['as_list']
-        _, tetr_genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count',
+        tetr_tree = get_json('../data/tetracycline/expected_result.json')['as_list']
+        _, tetr_genes_df = load_genes('../data/tetracycline/Gene_presence_absence.csv', gene_data_type='gene-count',
                                       ignore=roary_ignore)
-        _, tetr_traits_df = load_traits(get_path('tetracycline', 'traits'), trait_data_type='binary:,')
+        _, tetr_traits_df = load_traits('../data/tetracycline/Tetracycline_resistance.csv', trait_data_type='binary:,')
 
         tetr_label_to_gene = tetr_traits_df['Tetracycline_resistance'].to_dict()
 
@@ -229,9 +229,9 @@ class Test(TestCase):
         self.assertEqual(1, max_opposing, msg='max_opposing of pairs failed')
 
     def test_pairs_scoary1(self):
-        _, genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count', ignore=roary_ignore)
-        _, traits_df = load_traits(get_path('tetracycline', 'traits'), trait_data_type='binary:,')
-        expected_result = pd.read_csv(get_path('tetracycline', 'scoary1-result'))
+        _, genes_df = load_genes('../data/tetracycline/Gene_presence_absence.csv', gene_data_type='gene-count', ignore=roary_ignore)
+        _, traits_df = load_traits('../data/tetracycline/Tetracycline_resistance.csv', trait_data_type='binary:,')
+        expected_result = pd.read_csv('../data/tetracycline/fisher_permute100.results.csv')
 
         scoary_tree = ScoaryTree.from_presence_absence(genes_df)
         label_to_trait = traits_df.Tetracycline_resistance.apply(bool).to_dict()
@@ -272,14 +272,14 @@ class Test(TestCase):
                     self.fail(msg=f'Disagreement between Scoary1 and Scoary2')
 
     def test_scoary1_generated(self):
-        _, genes_df = load_genes(get_path('bigger_ds', 'genes'), 'gene-count:,')
-        _, traits_df = load_traits(get_path('bigger_ds', 'traits'), trait_data_type='binary:,')
+        _, genes_df = load_genes('../data/bigger_ds/pres_abs.csv', 'gene-count:,')
+        _, traits_df = load_traits('../data/bigger_ds/trait_trees.csv', trait_data_type='binary:,')
 
         for trait_name in ['t1', 't2']:
             label_to_trait = traits_df[trait_name].apply(bool).to_dict()
-            expected_result = pd.read_csv(get_path('bigger_ds', f'result-{trait_name}'))
+            expected_result = pd.read_csv(f'../data/bigger_ds/{trait_name}.results.csv')
 
-            with open(get_path('bigger_ds', 'tree')) as f:
+            with open('../data/bigger_ds/newick.nwk') as f:
                 newick = f.read()
             scoary_tree = ScoaryTree.from_newick(newick)
             # scoary_tree = ScoaryTree.from_presence_absence(genes_df)

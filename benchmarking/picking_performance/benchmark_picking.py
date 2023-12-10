@@ -143,10 +143,17 @@ df = benchmark(n_isolates=range(5, 101, 5), n_genes=range(5, 101, 5), n_times=5)
 
 print(df)
 
-df.to_csv('TMP/benchmark2.tsv', sep='\t')
+df.to_csv('data/benchmark.tsv', sep='\t')
 
 # %%
-df = pd.read_csv('TMP/benchmark2.tsv', sep='\t', index_col=0)
+df = pd.read_csv('data/benchmark.tsv', sep='\t', index_col=0)
+# rename columns
+df_renamed = df.rename(columns={
+    'n_isolates': 'Number of genomes',
+    'n_genes': 'Number of genes',
+    'scoary': 'Runtime Scoary [sec]',
+    'scoary2': 'Runtime Scoary2 [sec]'
+})
 
 import matplotlib as mpl
 
@@ -155,6 +162,7 @@ mpl.use('module://backend_interagg')
 
 from matplotlib import pyplot as plt
 from matplotlib.ticker import FuncFormatter
+import seaborn as sns
 
 
 # %%
@@ -189,7 +197,7 @@ def plot(
 
     ax.set_xlabel(x if not xlog else f'{x} (log)')
     ax.set_ylabel(y if not ylog else f'{y} (log)')
-    ax.set_zlabel('time [s]' if not zlog else f'time [s] (log)')
+    ax.set_zlabel('Time [sec]' if not zlog else f'Time [sec] (log)')
 
     plt.legend()
 
@@ -217,39 +225,43 @@ def plot(
 
 # %%
 plot(
-    df,
-    x='n_isolates',
-    y='n_genes',
+    df_renamed,
+    x='Number of genomes',
+    y='Number of genes',
     zs=[
-        ('scoary', 'darkred', plt.cm.Reds, 0.4),
-        ('scoary2', 'darkblue', plt.cm.Blues, 0.4)
+        ('Runtime Scoary [sec]', 'darkred', plt.cm.Reds, 0.4),
+        ('Runtime Scoary2 [sec]', 'darkblue', plt.cm.Blues, 0.4)
     ],
-    azim=-80
+    azim=-80,
+    save_path=f'data/benchmark.png'
 )
 
 # %%
 for azim in range(0, 360, 1):
+    print(f'{azim}/360', end='\r')
     plot(
-        df,
-        x='n_isolates',
-        y='n_genes',
+        df_renamed,
+        x='Number of genomes',
+        y='Number of genes',
         zs=[
-            ('scoary', 'darkred', plt.cm.Reds, 0.4),
-            ('scoary2', 'darkblue', plt.cm.Blues, 0.4)
+            ('Runtime Scoary [sec]', 'darkred', plt.cm.Reds, 0.4),
+            ('Runtime Scoary2 [sec]', 'darkblue', plt.cm.Blues, 0.4)
         ],
         azim=azim,
-        save_path=f'TMP/benchmark2/{azim:03d}.png'
+        save_path=f'data/benchmark/{azim:03d}.png'
     )
-# ffmpeg -i benchmark2/%03d.png -c:v libx264 -r 30 -pix_fmt yuv420p out.mp4
+# ffmpeg -i benchmark/%03d.png -c:v libvpx-vp9 -b:v 2000k -r 30 -pix_fmt yuv420p -threads 8 out.mp4
+
 
 # %%
-for experiment in ['scoary', 'scoary2']:
+plt.close()
+for experiment in ['Scoary', 'Scoary2']:
     # Set the style and font sizes
     sns.set_style('ticks')
     plt.rcParams.update({'font.size': 8})
 
     # Create a Seaborn line plot with different markers for each product
-    sns.lineplot(data=df, x=experiment, y="n_isolates", hue='n_genes', palette='rocket')
+    sns.lineplot(data=df_renamed, x=f'Runtime {experiment} [sec]', y='Number of genomes', hue='Number of genes', palette='rocket')
 
     # Set plot title and axes labels
     plt.title(f'Speed of {experiment}')
@@ -272,30 +284,86 @@ import statsmodels.api as sm
 import statsmodels.formula.api as smf
 
 # %%
-df_with_model = df.copy()
+df_with_model = df_renamed.copy()
 for experiment in ['scoary', 'scoary2']:
     print(f'================================= GLM for {experiment} =================================')
-    mod = smf.glm(formula=f"{experiment} ~ n_isolates + n_genes", data=df_with_model)  # , groups="subject", )  # cov_struct=ind, family=fam)
+    mod = smf.glm(formula=f"{experiment} ~ n_isolates + n_genes + n_isolates * n_genes", data=df)  # , groups="subject", )  # cov_struct=ind, family=fam)
 
     res = mod.fit()
 
-    df_with_model[f'{experiment}_simulated'] = res.params['Intercept'] + (df['n_isolates'] * res.params['n_isolates']) + (df['n_genes'] * res.params['n_genes'])
+    df_with_model[f'Runtime {experiment.capitalize()} [sec] (simulated)'] = (
+            res.params['Intercept'] +
+            (res.params['n_isolates'] * df['n_isolates']) +
+            (res.params['n_genes'] * df['n_genes']) +
+            (res.params['n_isolates:n_genes'] * df['n_isolates'] * df['n_genes'])
+    )
 
-    print(res.summary())  # pseudo-R²: 0.9972 and 0.9997
+    print(res.summary())
     print()
+    print(f"{experiment} = {res.params['Intercept']} + "
+          f"{res.params['n_isolates']} * n_isolates + "
+          f"{res.params['n_genes']} * n_genes + "
+          f"{res.params['n_isolates:n_genes']} * n_isolates * n_genes")
+    print()
+# %% OUTPUT
+# ================================= GLM for scoary =================================
+#                  Generalized Linear Model Regression Results
+# ==============================================================================
+# Dep. Variable:                 scoary   No. Observations:                  400
+# Model:                            GLM   Df Residuals:                      396
+# Model Family:                Gaussian   Df Model:                            3
+# Link Function:               Identity   Scale:                      2.3865e-05
+# Method:                          IRLS   Log-Likelihood:                 1563.1
+# Date:                Sun, 10 Dec 2023   Deviance:                    0.0094507
+# Time:                        16:19:24   Pearson chi2:                  0.00945
+# No. Iterations:                     3   Pseudo R-squ. (CS):              1.000
+# Covariance Type:            nonrobust
+# ======================================================================================
+#                          coef    std err          z      P>|z|      [0.025      0.975]
+# --------------------------------------------------------------------------------------
+# Intercept              0.0007      0.001      0.620      0.535      -0.001       0.003
+# n_isolates         -8.266e-07   1.76e-05     -0.047      0.963   -3.53e-05    3.37e-05
+# n_genes               -0.0001   1.76e-05     -5.862      0.000      -0.000   -6.87e-05
+# n_isolates:n_genes  2.808e-05   2.94e-07     95.547      0.000    2.75e-05    2.87e-05
+# ======================================================================================
+# scoary = 0.0006532479935340877 + -8.266041425328844e-07 * n_isolates + -0.00010316416563699979 * n_genes + 2.8076161350353536e-05 * n_isolates * n_genes
+#
+#
+# ================================= GLM for scoary2 =================================
+#                  Generalized Linear Model Regression Results
+# ==============================================================================
+# Dep. Variable:                scoary2   No. Observations:                  400
+# Model:                            GLM   Df Residuals:                      396
+# Model Family:                Gaussian   Df Model:                            3
+# Link Function:               Identity   Scale:                      4.8343e-08
+# Method:                          IRLS   Log-Likelihood:                 2803.4
+# Date:                Sun, 10 Dec 2023   Deviance:                   1.9144e-05
+# Time:                        16:19:24   Pearson chi2:                 1.91e-05
+# No. Iterations:                     3   Pseudo R-squ. (CS):              1.000
+# Covariance Type:            nonrobust
+# ======================================================================================
+#                          coef    std err          z      P>|z|      [0.025      0.975]
+# --------------------------------------------------------------------------------------
+# Intercept            4.73e-05   4.74e-05      0.997      0.319   -4.57e-05       0.000
+# n_isolates          1.388e-05   7.92e-07     17.521      0.000    1.23e-05    1.54e-05
+# n_genes            -2.187e-06   7.92e-07     -2.761      0.006   -3.74e-06   -6.35e-07
+# n_isolates:n_genes  6.867e-07   1.32e-08     51.923      0.000    6.61e-07    7.13e-07
+# ======================================================================================
+# scoary2 = 4.729632447019741e-05 + 1.387879503778183e-05 * n_isolates + -2.187177527361452e-06 * n_genes + 6.866970437111624e-07 * n_isolates * n_genes
 
 # %%
 plot(
     df_with_model,
-    x='n_isolates',
-    y='n_genes',
+    x='Number of genomes',
+    y='Number of genes',
     zs=[
-        ('scoary', 'darkred', plt.cm.Reds, 0.2),
-        ('scoary_simulated', 'lightcoral', plt.cm.Reds, 0.1),
-        ('scoary2', 'darkblue', plt.cm.Blues, 0.2),
-        ('scoary2_simulated', 'lightskyblue', plt.cm.Blues, 0.1)
+        ('Runtime Scoary [sec]', 'darkred', plt.cm.Reds, 0.4),
+        ('Runtime Scoary [sec] (simulated)', 'lightcoral', plt.cm.Reds, 0.1),
+        ('Runtime Scoary2 [sec]', 'darkblue', plt.cm.Blues, 0.4),
+        ('Runtime Scoary2 [sec] (simulated)', 'lightskyblue', plt.cm.Blues, 0.1)
     ],
-    azim=-80
+    azim=-80,
+    save_path=f'data/benchmark_with_GLM.png'
 )
 
 # %%
@@ -312,7 +380,7 @@ print(results.summary())  # R² is only 0.663
 from pysr import PySRRegressor
 
 model = PySRRegressor(
-    niterations=40,  # < Increase me for better results
+    niterations=40,
     binary_operators=["+", "*"],
     unary_operators=[
         "exp",
@@ -321,14 +389,13 @@ model = PySRRegressor(
     ],
     extra_sympy_mappings={"inv": lambda x: 1 / x},
     # ^ Define operator for SymPy as well
-    loss="L2DistLoss()",  # default
-    # loss="loss(prediction, target) = (prediction - target)^2",
-    # ^ Custom loss function (julia syntax)
+    loss="L2DistLoss()"
 )
 
-# %%
+# %% PySR for Scoary
 model.fit(df[['n_isolates', 'n_genes']], df['scoary'])
 print(model.equations_[['complexity', 'loss', 'score', 'sympy_format']].sort_values('score', ascending=False).to_string())
+# %% OUTPUT
 #     complexity      loss     score                                                                           sympy_format
 # 2            5  0.000031  2.116326                                                        2.6693995e-5*n_genes*n_isolates
 # 1            3  0.002136  0.305496                                                                0.0014034713*n_isolate
@@ -342,8 +409,10 @@ print(model.equations_[['complexity', 'loss', 'score', 'sympy_format']].sort_val
 # 6           14  0.000023  0.000782              2.7807815e-5*n_genes*(n_isolates - 2.938611 + 7.9112388204768/n_isolates)
 # 4           10  0.000024  0.000290                            2.7807815e-5*n_genes*(n_isolates - 2.938611 + 1/n_isolates)
 # 0            1  0.003934  0.000000                                                                     0.0725786300000000
+# %% PySR for Scoary2
 model.fit(df[['n_isolates', 'n_genes']], df['scoary2'])
 print(model.equations_[['complexity', 'loss', 'score', 'sympy_format']].sort_values('score', ascending=False).to_string())
+# %% OUTPUT
 #    complexity          loss     score                                                                           sympy_format
 # 2           5  2.263219e-07  0.884745                                                         8.678912e-7*n_genes*n_isolates
 # 4           8  9.565511e-08  0.664334                                 n_isolates*(7.766743e-7*n_genes + 7.53249666544822e-6)
@@ -357,25 +426,26 @@ print(model.equations_[['complexity', 'loss', 'score', 'sympy_format']].sort_val
 # 0           1  3.399310e-06  0.000000                                                                    0.00255381480000000
 
 
-# %%
-df_with_model = df.copy()
+# %% Add PySR to plot
+df_with_model = df_renamed.copy()
 # scoary: 2.6693995e-5*n_genes*n_isolates
-df_with_model[f'scoary_simulated'] = 2.6693995e-5 * df['n_isolates'] * df['n_genes']
+df_with_model[f'Runtime Scoary [sec] (simulated)'] = 2.6693995e-5 * df['n_isolates'] * df['n_genes']
 # scoary2: 8.678912e-7*n_genes*n_isolates
-df_with_model[f'scoary2_simulated'] = 8.678912e-7 * df['n_isolates'] * df['n_genes']
+df_with_model[f'Runtime Scoary2 [sec] (simulated)'] = 8.678912e-7 * df['n_isolates'] * df['n_genes']
 
 # %%
 plot(
     df_with_model,
-    x='n_isolates',
-    y='n_genes',
+    x='Number of genomes',
+    y='Number of genes',
     zs=[
-        ('scoary', 'darkred', plt.cm.Reds, 0.2),
-        ('scoary_simulated', 'lightcoral', plt.cm.Reds, 0.1),
-        ('scoary2', 'darkblue', plt.cm.Blues, 0.2),
-        ('scoary2_simulated', 'lightskyblue', plt.cm.Blues, 0.1)
+        ('Runtime Scoary [sec]', 'darkred', plt.cm.Reds, 0.4),
+        ('Runtime Scoary [sec] (simulated)', 'lightcoral', plt.cm.Reds, 0.1),
+        ('Runtime Scoary2 [sec]', 'darkblue', plt.cm.Blues, 0.4),
+        ('Runtime Scoary2 [sec] (simulated)', 'lightskyblue', plt.cm.Blues, 0.1)
     ],
-    azim=-80
+    azim=-80,
+    save_path=f'data/benchmark_with_PySR.png'
 )
 
 # %%
@@ -383,16 +453,16 @@ for azim in range(0, 360, 1):
     print(f'{azim}/360', end='\r')
     plot(
         df_with_model,
-        x='n_isolates',
-        y='n_genes',
+        x='Number of genomes',
+        y='Number of genes',
         zs=[
-            ('scoary', 'darkred', plt.cm.Reds, 0.2),
-            ('scoary_simulated', 'lightcoral', plt.cm.Reds, 0.1),
-            ('scoary2', 'darkblue', plt.cm.Blues, 0.2),
-            ('scoary2_simulated', 'lightskyblue', plt.cm.Blues, 0.1)
+            ('Runtime Scoary [sec]', 'darkred', plt.cm.Reds, 0.4),
+            ('Runtime Scoary [sec] (simulated)', 'lightcoral', plt.cm.Reds, 0.1),
+            ('Runtime Scoary2 [sec]', 'darkblue', plt.cm.Blues, 0.4),
+            ('Runtime Scoary2 [sec] (simulated)', 'lightskyblue', plt.cm.Blues, 0.1)
         ],
         azim=azim,
         dpi=80,
-        save_path=f'TMP/benchmark2_with_PySR/{azim:03d}.png'
+        save_path=f'data/benchmark_with_PySR/{azim:03d}.png'
     )
-# ffmpeg -i benchmark2_with_PySR/%03d.png -c:v libx264 -r 30 -pix_fmt yuv420p out_pysr.mp4
+# ffmpeg -i benchmark_with_PySR/%03d.png -c:v libvpx-vp9 -b:v 2000k -r 30 -pix_fmt yuv420p -threads 8 out_pysr.mp4

@@ -53,7 +53,7 @@ def load_binary(traits: str, delimiter: str, restrict_to: str = None, ignore: st
         assert type(l1) is type(l2) is int, f'{limit_traits=} is poorly formatted: must be (int, int).'
         traits_df = traits_df[traits_df.columns[l1:l2]]
 
-    filter_df(traits_df, restrict_to, ignore)
+    traits_df = filter_df(traits_df, restrict_to, ignore)
     assert traits_df.columns.is_unique, f'{traits=}: columns are not unique'
     assert traits_df.index.is_unique, f'{traits=}: index not unique'
 

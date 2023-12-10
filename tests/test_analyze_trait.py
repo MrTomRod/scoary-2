@@ -17,7 +17,7 @@ def generate_fake_traits(genes_df: pd.DataFrame) -> {str: bool}:
 
 class TestScoary(TestCase):
     def test_create_result_df(self):
-        _, genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count', ignore=roary_ignore)
+        _, genes_df = load_genes('../data/tetracycline/Gene_presence_absence.csv', gene_data_type='gene-count', ignore=roary_ignore)
         result_df = init_result_df(genes_df, trait_series=generate_fake_traits(genes_df))
         self.assertEqual(
             result_df.columns.tolist(),
@@ -25,14 +25,14 @@ class TestScoary(TestCase):
         )
 
     def test_contingency_test(self):
-        _, genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count', ignore=roary_ignore)
+        _, genes_df = load_genes('../data/tetracycline/Gene_presence_absence.csv', gene_data_type='gene-count', ignore=roary_ignore)
         result_df = init_result_df(genes_df, trait_series=generate_fake_traits(genes_df))
         test_df = create_test_df(result_df=result_df)
         self.assertEqual(['__contingency_table__', 'fisher_p'], test_df.columns.tolist())
         print(f"Done: minpval={test_df.fisher_p.min()}")
 
     def test_odds_ratio(self):
-        _, genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count', ignore=roary_ignore)
+        _, genes_df = load_genes('../data/tetracycline/Gene_presence_absence.csv', gene_data_type='gene-count', ignore=roary_ignore)
         genes_df = genes_df[:100]  # only first 100 rows
         test_df = init_result_df(genes_df, generate_fake_traits(genes_df))
 
@@ -53,7 +53,7 @@ class TestScoary(TestCase):
             self.assertTrue(is_equivalent(manual_or, fisher_or))
 
     def test_init_result_df_performance(self):
-        _, genes_df = load_genes(get_path('new_ds', 'genes-hog'), gene_data_type='gene-list:\t')
+        _, genes_df = load_genes('../data/new_ds/N0.tsv', gene_data_type='gene-list:\t')
         ltt = generate_fake_traits(genes_df)
         start = datetime.now()
         result_df = init_result_df(genes_df, trait_series=ltt)
@@ -62,8 +62,8 @@ class TestScoary(TestCase):
         print('took:', end - start)
 
     def test_tetracycline(self):
-        _, genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count', ignore=roary_ignore)
-        _, traits_df = load_traits(get_path('tetracycline', 'traits'), trait_data_type='binary:,')
+        _, genes_df = load_genes('../data/tetracycline/Gene_presence_absence.csv', gene_data_type='gene-count', ignore=roary_ignore)
+        _, traits_df = load_traits('../data/tetracycline/Tetracycline_resistance.csv', trait_data_type='binary:,')
         trait_series = traits_df['Tetracycline_resistance']
 
         # calculate sensitivity and specificity
@@ -77,12 +77,12 @@ class TestScoary(TestCase):
         # calculate odds_ratio
         test_df = add_odds_ratio(test_df)
         # calculate pairwise comparisons
-        tree = ScoaryTree.from_list(get_json('tetracycline', 'treelist')['as_list'])
+        tree = ScoaryTree.from_list(get_json('../data/tetracycline/expected_result.json')['as_list'])
         assert set(tree.labels()) == set(genes_df.columns)
         test_df = pair_picking(test_df, genes_df, tree=tree, label_to_trait=trait_series)
 
         # load expected result from scoary 1
-        expected_result = pd.read_csv(get_path('tetracycline', 'scoary1-result'))
+        expected_result = pd.read_csv('../data/tetracycline/fisher_permute100.results.csv')
 
         test_df.set_index('Gene', inplace=True)
 

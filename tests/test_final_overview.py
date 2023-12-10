@@ -54,11 +54,11 @@ class Test(TestCase):
                      [pd.NA, True, True], [pd.NA, pd.NA, True], [True, pd.NA, True], [pd.NA, False, True],
                      [False, pd.NA, True], [pd.NA, pd.NA, True]]},
                                  dtype='boolean')
-        self.fake_ns.traits_df = traits_df  # load_binary(get_path('new_ds', 'traits-lc-binary'), '\t')
+        self.fake_ns.traits_df = traits_df  # load_binary('../data/new_ds/LC-binary.tsv', '\t')
         create_final_overview(summary_df=summary_df, ns=self.fake_ns)
 
     def test_larger(self):
-        self.fake_ns.traits_df = load_binary(get_path('new_ds', 'traits-lc-binary'), '\t')
+        self.fake_ns.traits_df = load_binary('../data/new_ds/LC-binary.tsv', '\t')
         summary_df = pd.DataFrame(index=self.fake_ns.traits_df.columns)
         for col in ['best_fisher_p', 'best_fisher_q', 'best_empirical_p']:
             summary_df[col] = np.random.rand(1, len(self.fake_ns.traits_df.columns))[0]

@@ -1,8 +1,8 @@
 from init_tests import *
 from scoary.load_traits import load_numeric, load_binary, apply_kmeans, apply_gm, binarize, load_traits
 
-traits_bin = get_path('tetracycline', 'traits')
-traits_num = get_path('tetracycline', 'traits-numeric')
+traits_bin = '../data/tetracycline/Tetracycline_resistance.csv'
+traits_num = '../data/tetracycline/Tetracycline_resistance_numeric.csv'
 
 
 class Test(TestCase):
@@ -49,7 +49,7 @@ class Test(TestCase):
     def test_multiprocessing(self):
         for n_cpus in [1, 5]:
             numeric_df, traits_df = load_traits(
-                get_path('new_ds', 'traits-lc'),
+                '../data/new_ds/LC.tsv',
                 trait_data_type='gaussian:skip:\t',
                 ignore='Starter-only-5A,FAMIX,Starter-only-10,Starter-only-7,mixture',
                 n_cpus=n_cpus, limit_traits=(0, 10),

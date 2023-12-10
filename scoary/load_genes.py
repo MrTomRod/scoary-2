@@ -1,5 +1,4 @@
 import logging
-from collections import defaultdict
 import pandas as pd
 
 logger = logging.getLogger('scoary.load_genes')

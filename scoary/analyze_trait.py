@@ -1,7 +1,8 @@
 import os
+import json
 import logging
 from collections import defaultdict
-import json
+import numpy as np
 import pandas as pd
 from statsmodels.stats.multitest import multipletests
 from fast_fisher.fast_fisher_numba import odds_ratio, test1t as fisher_exact_two_tailed
@@ -19,7 +20,8 @@ logger = logging.getLogger('scoary.analyze_trait')
 def worker(
         q,
         ns: AnalyzeTraitNamespace,
-        result_container: {str: float | str | None},
+        step: int,
+        result_container: {dict | str | None},
         proc_id: int
 ):
     logger = setup_logging(
@@ -33,6 +35,8 @@ def worker(
     new_ns = grasp_namespace(AnalyzeTraitNamespace, ns)
     del ns
 
+    analyze_trait_fn = analyze_trait_step_1_fisher if step == 1 else analyze_trait_step_2_pairpicking
+
     local_result_container = {}
 
     while True:
@@ -41,19 +45,19 @@ def worker(
         except Empty:
             break  # completely done
 
-        local_result_container[trait] = analyze_trait(trait, new_ns, proc_id)
+        local_result_container[trait] = analyze_trait_fn(trait, new_ns, proc_id)
         q.task_done()
 
     result_container.update(local_result_container)
 
 
-def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) -> dict | str | None:
-    logger.debug(f'Analyzing {trait=}')
+def analyze_trait_step_1_fisher(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) -> np.ndarray | str:
+    logger.debug(f"Analyzing {trait=}, step 1: Fisher's test")
     with ns.lock:
         ns.counter.value += 1
         message = trait if proc_id is None else f'P{proc_id} | {trait}'
         print_progress(
-            ns.counter.value, len(ns.traits_df.columns),
+            ns.counter.value, ns.queue_size,
             message=message, start_time=ns.start_time, message_width=25
         )
 
@@ -62,39 +66,77 @@ def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) ->
         save_duplicated_result(trait, ns)
         return ns.duplicates[trait]
 
-    trait_series = ns.traits_df[trait].dropna()
-    labels = set(trait_series.index)
+    # Prepare results.tsv
+    isolate_trait_series = ns.traits_df[trait].dropna()
+    result_df = init_result_df(ns.genes_bool_df, isolate_trait_series)
 
-    if ns.all_labels == labels:
-        pruned_tree = ns.tree
-    else:
-        pruned_tree = ns.tree.prune(labels=labels)
+    # Sometimes, binarization gives extreme results and no genes are left
+    if len(result_df) == 0:
+        logger.info(f'Found 0 genes for {trait=}!')
+        return False
 
-    result_df = init_result_df(ns.genes_bool_df, trait_series)
+    # Compute Fisher's test efficiently
     test_df = create_test_df(result_df)
     test_df = add_odds_ratio(test_df)
-    test_df = multiple_testing_correction(
-        test_df, column='fisher_p', new_column='fisher_q',
-        method=ns.mt_f_method, cutoff=ns.mt_f_cutoff, is_sorted=True,
-        multiple_testing_many_traits=ns.multiple_testing_many_traits, n_traits_tested=ns.n_traits_tested
-    )
+    result_df = pd.merge(result_df, test_df, how="left", on='__contingency_table__', copy=False)
 
-    if len(test_df) == 0:
-        logger.info(f'Found 0 genes for {trait=} '
-                    f'after {ns.mt_f_method}:{ns.mt_f_cutoff} filtration')
-        return None
+    # Perform multiple testing correction
+    multiple_testing_df = result_df[['__pattern_id__', 'fisher_p']].drop_duplicates('__pattern_id__')
+    if ns.trait_wise_correction:
+        multiple_testing_df = multiple_testing_correction(
+            multiple_testing_df, 'fisher_p', 'fisher_q',
+            ns.mt_f_method, ns.mt_f_cutoff, False
+        )
+        if len(multiple_testing_df) == 0:
+            logger.info(f'Found 0 genes for {trait=} after multiple testing correction!')
+            return False
 
-    result_df = pd.merge(
-        test_df, result_df, how="left", on='__contingency_table__',
-        copy=False  # for performance
-    )
+        multiple_testing_df.drop('fisher_p', axis=1, inplace=True)
+        result_df = pd.merge(multiple_testing_df, result_df, how="left", on='__pattern_id__', copy=False)
+        result = True
+    else:
+        result = multiple_testing_df
 
-    result_df.attrs.update(test_df.attrs)
+    os.makedirs(f'{ns.outdir}/traits/{trait}')
+    result_df.to_csv(f'{ns.outdir}/traits/{trait}/result.tsv', sep='\t', index=False)
+
+    return result
+
+
+def analyze_trait_step_2_pairpicking(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) -> dict | str | None:
+    logger.debug(f'Analyzing {trait=}, step 2: Pair picking')
+    with ns.lock:
+        ns.counter.value += 1
+        message = trait if proc_id is None else f'P{proc_id} | {trait}'
+        print_progress(
+            ns.counter.value, ns.queue_size,
+            message=message, start_time=ns.start_time, message_width=25
+        )
+    summary_data = {}
+
+    result_df = pd.read_csv(f'{ns.outdir}/traits/{trait}/result.tsv', sep='\t')
+
+    if ns.trait_wise_correction:
+        assert 'fisher_q' in result_df.columns, f'{result_df.columns=} must contain "fisher_q"!'
+    else:
+        multiple_testing_df = ns.multiple_testing_df.loc[trait, :]
+        result_df = pd.merge(multiple_testing_df, result_df, how="left", on='__pattern_id__', copy=False)
+
+    assert 'fisher_p' in result_df.columns, f'{result_df.columns=} must contain "fisher_p"!'
+    assert 'fisher_q' in result_df.columns, f'{result_df.columns=} must contain "fisher_q"!'
 
     if not ns.pairwise:
-        result_df.attrs['best_fisher_p'] = result_df['fisher_p'].min()
-        result_df.attrs['best_fisher_q'] = result_df['fisher_q'].min()
+        min_row = result_df.loc[result_df['fisher_p'].idxmin()]
+        summary_data['best_fisher_p'] = min_row['fisher_p']
+        summary_data['best_fisher_q'] = min_row['fisher_q']
     else:
+        trait_series = ns.traits_df[trait].dropna()
+        isolates = set(trait_series.index)
+        if ns.all_labels == isolates:
+            pruned_tree = ns.tree
+        else:
+            pruned_tree = ns.tree.prune(labels=isolates)
+
         result_df = pair_picking(
             result_df,
             significant_genes_df=ns.genes_bool_df.loc[result_df.Gene],
@@ -112,7 +154,7 @@ def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) ->
             if len(result_df) > ns.max_genes:
                 logger.info(f'Found too {len(result_df)} genes for {trait=} '
                             f'keeping only {ns.max_genes} with best Fisher\'s test.')
-                result_df.attrs['max_genes'] = f'Trimmed {len(result_df)} genes to {ns.max_genes}.'
+                summary_data['max_genes'] = f'Trimmed {len(result_df)} genes to {ns.max_genes}.'
                 result_df = result_df.iloc[:ns.max_genes]
 
         if ns.n_permut:
@@ -129,15 +171,16 @@ def analyze_trait(trait: str, ns: AnalyzeTraitNamespace, proc_id: int = None) ->
             result_df['fq*ep'] = result_df['fisher_q'] * result_df['empirical_p']
             result_df.sort_values(by='fq*ep', inplace=True)
 
-            result_df.attrs['best_fisher_p'] = result_df['fisher_p'][0]
-            result_df.attrs['best_fisher_q'] = result_df['fisher_q'][0]
-            result_df.attrs['best_empirical_p'] = result_df['empirical_p'][0]
-            result_df.attrs['best_fq*ep'] = result_df['fq*ep'][0]
+            best_row = result_df.iloc[0]
+            summary_data['best_fisher_p'] = best_row['fisher_p']
+            summary_data['best_fisher_q'] = best_row['fisher_q']
+            summary_data['best_empirical_p'] = best_row['empirical_p']
+            summary_data['best_fq*ep'] = best_row['fq*ep']
 
     save_result_df(trait, ns, result_df)
 
     # return minimal pvalues
-    return result_df.attrs
+    return summary_data
 
 
 def _save_trait(trait: str, ns: AnalyzeTraitNamespace):
@@ -150,8 +193,6 @@ def _save_trait(trait: str, ns: AnalyzeTraitNamespace):
 
 
 def save_result_df(trait: str, ns: AnalyzeTraitNamespace, result_df: pd.DataFrame):
-    os.makedirs(f'{ns.outdir}/traits/{trait}')
-
     # add annotations
     if ns.gene_info_df is None:
         additional_columns = []
@@ -160,9 +201,8 @@ def save_result_df(trait: str, ns: AnalyzeTraitNamespace, result_df: pd.DataFram
         result_df = result_df.merge(ns.gene_info_df, left_on='Gene', right_index=True, how='left', copy=False)
 
     # reorder columns
-    col_order = ['Gene'] + \
-                additional_columns + \
-                ['g+t+', 'g+t-', 'g-t+', 'g-t-',
+    col_order = ['Gene', *additional_columns,
+                 'g+t+', 'g+t-', 'g-t+', 'g-t-',
                  'sensitivity', 'specificity', 'odds_ratio',
                  'fisher_p', 'fisher_q', 'empirical_p', 'fq*ep',
                  'contrasting', 'supporting', 'opposing', 'best', 'worst']
@@ -197,7 +237,6 @@ def save_result_df(trait: str, ns: AnalyzeTraitNamespace, result_df: pd.DataFram
 
 
 def save_duplicated_result(trait: str, ns: AnalyzeTraitNamespace):
-    # todo: might create symlinks traits that didn't make it through filtering!
     os.makedirs(f'{ns.outdir}/traits/{trait}')
 
     # use data from previous duplicate
@@ -230,16 +269,22 @@ def init_result_df(genes_bool_df: pd.DataFrame, trait_series: pd.Series) -> pd.D
     n_tot = n_pos + n_neg
     assert n_tot == len(trait_series)
 
-    # create result_df
+    # Create result_df
     result_df = pd.DataFrame(index=genes_bool_df.index)
     result_df['g+t+'] = genes_bool_df[trait_pos].sum(axis=1)  # trait positive gene positive
     result_df['g+t-'] = genes_bool_df[trait_neg].sum(axis=1)  # trait negative gene positive
     result_df['g-t+'] = n_pos - result_df['g+t+']  # trait positive gene negative
     result_df['g-t-'] = n_neg - result_df['g+t-']  # trait negative gene negative
 
-    # remove genes that are shared by none or all
+    # Remove genes that are shared by none or all
     gene_sum = result_df['g+t+'] + result_df['g+t-']
-    result_df = result_df[(gene_sum != 0) & (gene_sum != n_tot)]
+    to_keep = (gene_sum != 0) & (gene_sum != n_tot)
+    result_df = result_df[to_keep]
+
+    # Add unique pattern ID
+    genes_bool_df_reduced = genes_bool_df.loc[to_keep, trait_pos.to_list() + trait_neg.to_list()]
+    pattern_id = genes_bool_df_reduced.groupby(by=genes_bool_df_reduced.columns.to_list()).ngroup()
+    result_df['__pattern_id__'] = pattern_id
 
     # Add contingency table, sensitivity and specificity
     result_df['__contingency_table__'] = [tuple(x) for x in result_df[['g+t+', 'g+t-', 'g-t+', 'g-t-']].to_numpy()]
@@ -293,37 +338,29 @@ def add_odds_ratio(test_df: pd.DataFrame) -> pd.DataFrame:
 
 def multiple_testing_correction(
         df: pd.DataFrame,
-        column: str,
-        new_column: str,
+        pval_column: str,
+        qval_column: str,
         method: str,
         cutoff: float,
-        multiple_testing_many_traits: str = False,
-        n_traits_tested: int = None,
         is_sorted: bool = False
 ) -> (float, pd.DataFrame):
-    assert column in df.columns, f'{column=} must be in {df.columns=}!'
+    assert pval_column in df.columns, f'{pval_column=} must be in {df.columns=}!'
+    if qval_column in df.columns:
+        logger.warning(f'Overwriting {qval_column=} in {df.columns=}!')
 
-    # Apply multiple testing correction for each trait here if bonferroni
-    if multiple_testing_many_traits == 'bonferroni':
-        pq_vals = df[column] * n_traits_tested
-    else:
-        pq_vals = df[column]
+    pvals = df[pval_column]
 
     # Apply multiple testing correction for each orthogene
     if method == 'native':
-        reject = pq_vals <= cutoff
-        _, qval, _, _ = multipletests(pvals=pq_vals, alpha=1, method='bonferroni', is_sorted=is_sorted)
+        reject = pvals <= cutoff
+        _, qval, _, _ = multipletests(pvals=pvals, alpha=1, method='bonferroni', is_sorted=is_sorted)
     else:
         reject, qval, alphac_sidak, alphac_bonf = multipletests(
-            pvals=pq_vals,
-            alpha=cutoff,
-            method=method,
-            is_sorted=is_sorted,
+            pvals=pvals, alpha=cutoff, method=method, is_sorted=is_sorted,
         )
 
-    df[new_column] = qval
+    df[qval_column] = qval
     df = df[reject]
-
     return df
 
 

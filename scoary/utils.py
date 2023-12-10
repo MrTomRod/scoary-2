@@ -6,11 +6,15 @@ import logging
 from copy import deepcopy
 import warnings
 from functools import cache
-from typing import Type, Any, Callable
+from typing import Type, Any
 from datetime import datetime
 import numpy as np
 import pandas as pd
 from importlib.metadata import version
+from numba.core.errors import NumbaDeprecationWarning, NumbaPendingDeprecationWarning
+
+warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
+warnings.simplefilter('ignore', category=NumbaPendingDeprecationWarning)
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 ALLOWED_CORRECTIONS = {'native', 'bonferroni', 'sidak', 'holm-sidak', 'holm', 'simes-hochberg', 'hommel', 'fdr_bh',
@@ -280,6 +284,7 @@ def grasp_namespace(cls, ns):
 
 class AnalyzeTraitNamespace(AbstractNamespace):
     counter: MockCounter
+    queue_size: int
     lock: MockLock
     outdir: str
     start_time: datetime
@@ -289,18 +294,18 @@ class AnalyzeTraitNamespace(AbstractNamespace):
     numeric_df: pd.DataFrame
     traits_df: pd.DataFrame
     trait_info_df: pd.DataFrame | None
-    multiple_testing_many_traits: str
     duplicates: pd.DataFrame
-    n_traits_tested: int
     tree: object  #: ScoaryTree
     all_labels: set
     mt_f_method: str
     mt_f_cutoff: float
+    trait_wise_correction: bool
     max_genes: int
     worst_cutoff: None | float
     n_permut: int
     random_state: int
     pairwise: bool
+    multiple_testing_df: pd.DataFrame
 
 
 class BinarizeTraitNamespace(AbstractNamespace):

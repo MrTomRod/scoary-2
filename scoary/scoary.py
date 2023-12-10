@@ -4,7 +4,7 @@ from .ScoaryTree import ScoaryTree
 from .load_genes import load_genes
 from .load_traits import load_traits
 from .final_overview import create_final_overview
-from .analyze_trait import analyze_trait, worker, multiple_testing_correction
+from .analyze_trait import analyze_trait_step_1_fisher, analyze_trait_step_2_pairpicking, worker, multiple_testing_correction
 
 logger = logging.getLogger('scoary')
 
@@ -14,7 +14,7 @@ def scoary(
         traits: str,
         outdir: str,
         multiple_testing: str = 'bonferroni:0.999',
-        multiple_testing_many_traits: str = 'bonferroni:1',
+        trait_wise_correction: bool = False,
         worst_cutoff: float = None,
         max_genes: int = None,
         gene_info: str = None,
@@ -45,18 +45,13 @@ def scoary(
     :param genes: Path to gene presence/absence table: columns=isolates, rows=genes
     :param traits: Path to trait presence/absence table: columns=traits, rows=isolates
     :param outdir: Directory to place output files
-    :param multiple_testing:
-    Apply multiple testing to the p-value of Fisher's test to account for the many genes tested.
-    Format: "method:cutoff".
+    :param multiple_testing: Apply multiple testing to the p-values of Fisher's test to account for the many
+    genes/traits tested. Format: "method:cutoff".
     Cutoff is a number that specifies the FWER and method is one of [native, bonferroni, sidak, holm-sidak, holm,
     simes-hochberg, hommel, fdr_bh, fdr_by,  fdr_tsbh, fdr_tsbky].
     If method is 'native': then, the cutoff targets the uncorrected p-value from Fisher's test.
-    :param multiple_testing_many_traits:
-    Apply multiple testing to the p-value of Fisher's test to account for the many traits tested.
-    Format: "method:cutoff".
-    Cutoff is a number that specifies the FWER and method is one of [native, bonferroni, sidak, holm-sidak, holm,
-    simes-hochberg, hommel, fdr_bh, fdr_by,  fdr_tsbh, fdr_tsbky].
-    If method is 'native': then, the cutoff targets the uncorrected p-value.
+    :param trait_wise_correction: Apply multiple testing correction to each trait separately. Not recommended as
+    this can lead to many false positives!
     :param worst_cutoff: Drop traits if no gene with "worst" p-value lower than threshold. Recommended if
     dataset contains multiple species
     :param max_genes: Keep only n highest-scoring genes in Fisher's test. Recommended if dataset is big and contains
@@ -103,7 +98,6 @@ def scoary(
 
     logger.debug(f'Scoary2 Version: {get_version()}')
     mt_f_method, mt_f_cutoff = parse_correction(multiple_testing, 'multiple_testing')
-    mt_manytraits_f_method, mt_manytraits_f_cutoff = parse_correction(multiple_testing_many_traits, 'multiple_testing_many_traits')
     assert n_permut == 0 or n_permut >= 100, f'{n_permut=} must be at least 100.'
 
     # start
@@ -167,8 +161,8 @@ def scoary(
 
     all_labels = set(tree.labels())
 
+    traits = traits_df.columns.to_list()
     duplicates = find_duplicates(traits_df)
-    n_traits_tested = len(traits_df.columns) - len(duplicates)
 
     logger.info('Finalizing setup...')
     if n_cpus == 1:
@@ -180,6 +174,7 @@ def scoary(
     ns = AnalyzeTraitNamespace.create_namespace(ns, {
         'start_time': datetime.now(),
         'counter': counter,
+        'queue_size': len(traits),
         'lock': lock,
         'outdir': outdir,
         'genes_orig_df': genes_orig_df,
@@ -189,62 +184,107 @@ def scoary(
         'traits_df': traits_df,
         'trait_info_df': trait_info,
         'duplicates': duplicates,
-        'n_traits_tested': n_traits_tested,
         'tree': tree,
         'all_labels': all_labels,
         'mt_f_method': mt_f_method,
         'mt_f_cutoff': mt_f_cutoff,
+        'trait_wise_correction': trait_wise_correction,
         'max_genes': max_genes,
         'worst_cutoff': worst_cutoff,
         'n_permut': n_permut,
         'random_state': random_state,
         'pairwise': pairwise,
+        'multiple_testing_df': None,
     })
 
-    traits = traits_df.columns.to_list()
-
-    logger.info('Start analyzing traits...')
+    logger.info('Starting step 1: Fisher\'s test...')
     if n_cpus == 1:
-        picking_start = datetime.now()
-        trait_to_result = {trait: analyze_trait(trait, ns) for trait in traits}
+        step_1_start = datetime.now()
+        trait_to_result = {trait: analyze_trait_step_1_fisher(trait, ns) for trait in traits}
     else:
         mp.freeze_support()
         queue = mgr.JoinableQueue()
         trait_to_result = mgr.dict()
         [queue.put(trait) for trait in traits]
-        procs = [mp.Process(target=worker, args=(queue, ns, trait_to_result, i)) for i in range(n_cpus)]
-        picking_start = datetime.now()
+        procs = [mp.Process(target=worker, args=(queue, ns, 1, trait_to_result, i)) for i in range(n_cpus)]
+        step_1_start = datetime.now()
         [p.start() for p in procs]
         [p.join() for p in procs]
-    picking_end = datetime.now()
 
+    step_2_end = datetime.now()
     print_progress(
-        len(ns.traits_df.columns), len(ns.traits_df.columns),
-        message='COMPLETE!', start_time=ns.start_time, message_width=25,
+        len(traits), len(traits),
+        message='Step 1 complete!', start_time=ns.start_time, message_width=25,
         end='\n'
     )
-    logger.info(f'Picking took {picking_end - picking_start}')
-    try:
-        summary_df = create_summary_df(trait_to_result)
+    logger.info(f'Step 1 took {step_2_end - step_1_start}')
 
-        # ToDo: Consider doing multiple testing for traits here instead of in analyze_trait
-        summary_df = summary_df.sort_values(by='best_fq*ep', ascending=False)
-        # Apply multiple testing correction to columns best_fisher_q
-        summary_df['best_fisher_q'] = multiple_testing_correction(
-            test_df, column='best_fisher_q', new_column='best_fisher_q',
-            method=ns.multiple_testing_many_traits, cutoff=ns.mt_f_cutoff, is_sorted=True
+    duplicated_traits = {trait: res for trait, res in trait_to_result.items() if type(res) is str}
+    logger.info(f'Number of duplicated traits: {len(duplicated_traits)}')
+    logger.info(f'Number of non-duplicated traits: {len(trait_to_result) - len(duplicated_traits)}')
+
+    # multiple testing correction
+    if trait_wise_correction:
+        traits_left = {trait for trait, res in trait_to_result.items() if res is True}
+        ns.multiple_testing_df = 'Not used'
+    else:
+        trait_to_result = {trait: res for trait, res in trait_to_result.items() if type(res) is not str}
+        multiple_testing_df = multiple_testing_correction(
+            pd.concat(trait_to_result), 'fisher_p', 'fisher_q',
+            ns.mt_f_method, ns.mt_f_cutoff, False
         )
-        # Apply multiple testing correction to columns best_fq*ep if column exists
-        if 'best_fq*ep' in summary_df.columns:
-            summary_df['best_fq*ep'] = 0  # todo
+        multiple_testing_df.drop('fisher_p', axis=1, inplace=True)
+        traits_left = multiple_testing_df.index.get_level_values(0).unique().to_list()
+        ns.multiple_testing_df = multiple_testing_df
+    del trait_to_result
 
-        create_final_overview(summary_df, ns.traits_df, ns.numeric_df, ns.outdir, ns.trait_info_df, isolate_info,
-                              force_binary_clustering, symmetric, distance_metric, linkage_method, optimal_ordering, corr_method)
+    # Step 2: Pairpicking
+    ns.queue_size = len(traits_left)
+    ns.counter.value = 0
+    logger.info(f'Number of traits left after multiple testing correction: {len(traits_left)}')
 
-        logger.info('Complete success!')
+    logger.info('Starting step 2: Pair picking...')
+    if n_cpus == 1:
+        step_2_start = datetime.now()
+        trait_to_result = {trait: analyze_trait_step_2_pairpicking(trait, ns) for trait in traits_left}
+    else:
+        mp.freeze_support()
+        queue = mgr.JoinableQueue()
+        trait_to_result = mgr.dict()
+        [queue.put(trait) for trait in traits_left]
+        procs = [mp.Process(target=worker, args=(queue, ns, 2, trait_to_result, i)) for i in range(n_cpus)]
+        step_2_start = datetime.now()
+        [p.start() for p in procs]
+        [p.join() for p in procs]
 
+    step_2_end = datetime.now()
+    print_progress(
+        len(traits_left), len(traits_left),
+        message='Step 2 complete!', start_time=ns.start_time, message_width=25,
+        end='\n'
+    )
+    logger.info(f'Step 2 took {step_2_end - step_2_start}')
+
+    try:
+        summary_df = create_summary_df(trait_to_result, duplicated_traits)
     except NoTraitsLeftException as e:
         logger.info(str(e))
+        logger.debug(f'Took {datetime.now() - start_time}')
+        return
+    del trait_to_result
+
+    summary_df = summary_df.sort_values(
+        by='best_fq*ep' if 'best_fq*ep' in summary_df.columns else 'best_fisher_q',
+        ascending=False
+    )
+
+    create_final_overview(summary_df, ns.traits_df, ns.numeric_df, ns.outdir, ns.trait_info_df, isolate_info,
+                          force_binary_clustering, symmetric, distance_metric, linkage_method, optimal_ordering, corr_method)
+
+    logger.info('Cleaning up...')
+    clean_up(outdir, summary_df.index.to_list())
+
+    logger.info('Complete success!')
 
     logger.debug(f'Took {datetime.now() - start_time}')
 
@@ -252,7 +292,7 @@ def scoary(
         print(CITATION)
 
 
-def create_summary_df(trait_to_result: {str: [dict | str | None]}) -> pd.DataFrame | None:
+def create_summary_df(trait_to_result: {str: [dict | None]}, duplicated_traits: {str: str}) -> pd.DataFrame | None:
     """
     Turn trait_to_result into a pandas.DataFrame. Example:
 
@@ -264,14 +304,15 @@ def create_summary_df(trait_to_result: {str: [dict | str | None]}) -> pd.DataFra
     :param trait_to_result: dictionary where keys are trait names and values are either dict|str|None
     :return: pandas.DataFrame
     """
-    # res may contain: float, str or None:
-    #  - float: smallest empirical pvalue
-    #  - str:   duplicated trait -> name of trait
+    # res may contain: dict or None:
+    #  - dict:  data to be added to summary_df as a row
     #  - None:  no gene was significant
 
-    trait_to_result = {t: trait_to_result[r] if type(r) is str else r for t, r in
-                       trait_to_result.items()}  # restore duplicates
-    trait_to_result = {t: r for t, r in trait_to_result.items() if r is not None}  # remove Nones
+    # remove Nones
+    trait_to_result = {t: r for t, r in trait_to_result.items() if r is not None}
+
+    # remove traits with no significant genes
+    trait_to_result.update({t: trait_to_result[r] for t, r in duplicated_traits.items() if r in trait_to_result})
 
     if len(trait_to_result) == 0:
         raise NoTraitsLeftException('No traits left after filtering')
@@ -298,6 +339,13 @@ def find_duplicates(traits_df: pd.DataFrame) -> pd.Series:
         func=lambda h: lookup_df.iloc[lookup_df.hash.searchsorted(h)].name
     )
     return duplicates
+
+
+def clean_up(outdir: str, traits_left: list[str]) -> None:
+    import shutil
+    for trait in os.listdir(f'{outdir}/traits'):
+        if trait not in traits_left:
+            shutil.rmtree(f'{outdir}/traits/{trait}')
 
 
 CITATION = f'''

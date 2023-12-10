@@ -24,18 +24,20 @@ class TestScoary(TestCase):
 
     def test_scoary_single_threaded(self):
         scoary(
-            genes=get_path('tetracycline', 'genes'),
-            traits=get_path('tetracycline', 'traits'),
-            n_permut=10000,
-            multiple_testing='native:0.05',
+            trait_wise_correction=False,
+            genes='../data/tetracycline/Gene_presence_absence.csv',
+            traits='../data/tetracycline/Tetracycline_resistance.csv',
+            n_permut=1000,
+            multiple_testing='fdr_bh:0.5',
             n_cpus=1,
             outdir=self.tempdir
         )
 
     def test_scoary_multi_threaded(self):
         scoary(
-            genes=get_path('tetracycline', 'genes'),
-            traits=get_path('tetracycline', 'traits'),
+            trait_wise_correction=True,
+            genes='../data/tetracycline/Gene_presence_absence.csv',
+            traits='../data/tetracycline/Tetracycline_resistance.csv',
             n_permut=200,
             n_cpus=4,
             outdir=self.tempdir,
@@ -44,19 +46,22 @@ class TestScoary(TestCase):
 
     def test_scoary_gene_info(self):
         scoary(
-            genes=get_path('tetracycline', 'genes'),
-            gene_info=get_path('tetracycline', 'gene-info'),
-            traits=get_path('tetracycline', 'traits'),
-            n_permut=1000,
+            genes='../data/tetracycline/Gene_presence_absence.csv',
+            gene_info='../data/tetracycline/gene-info.tsv',
+            traits='../data/tetracycline/Tetracycline_resistance.csv',
+            n_permut=10000,
             n_cpus=1,
             outdir=self.tempdir
         )
 
-    def test_scoary_long(self):
+    def test_scoary_long_binary(self):
         scoary(
-            genes=get_path('new_ds', 'genes-hog'),
+            trait_wise_correction=True,
+            multiple_testing='fdr_bh:0.6',
+            linkage_method='average',
+            genes='../data/new_ds/N0.tsv',
             gene_data_type='gene-list:\t',
-            traits=get_path('new_ds', 'traits-lc-binary'),
+            traits='../data/new_ds/LC-binary.tsv',
             trait_data_type='binary:\t',
             n_permut=200,
             # ignore='Starter-only-5A,FAMIX,Starter-only-10,Starter-only-7,mixture',
@@ -64,22 +69,24 @@ class TestScoary(TestCase):
             random_state=42,
             n_cpus=7,
             outdir=self.tempdir,
-            limit_traits=(0, 20),
-            max_genes=100,
+            # limit_traits=(0, 20),
+            limit_traits=(320, 340),
+            max_genes=100
         )
 
     def test_scoary_long_numeric(self):
         scoary(
-            genes=get_path('new_ds', 'genes-hog'),
-            gene_info=get_path('new_ds', 'genes-hog-info'),
+            multiple_testing='fdr_bh:0.3',
+            genes='../data/new_ds/N0.tsv',
+            gene_info='../data/new_ds/N0_best_names.tsv',
             gene_data_type='gene-list:\t',
-            traits=get_path('new_ds', 'traits-lc'),
-            trait_data_type=f'gaussian:skip:\t:tied',  # {'tied', 'full', 'diag', 'spherical'}
-            trait_info=get_path('new_ds', 'traits-lc-meta'),
-            isolate_info=get_path('new_ds', 'isolate-meta'),
+            traits='../data/new_ds/LC.tsv',
+            trait_data_type='gaussian:skip:\t:tied',
+            trait_info='../data/new_ds/LC-meta.tsv',
+            isolate_info='../data/new_ds/isolate-meta.tsv',
             n_permut=200,
             # ignore='Starter-only-5A,FAMIX,Starter-only-10,Starter-only-7,mixture',
-            restrict_to=RESTRICT_TO,
+            restrict_to='FAM14177-p1-1.1,FAM14184-i1-1.1,FAM14193-i1-1.1,FAM14197-i1-1.1,FAM14217-p1-1.1,FAM14221-p1-1.1,FAM14222-p1-1.1,FAM1414-i1-1.1,FAM15061-i1-1.1,FAM15078-i1-1.1,FAM15113-i1-1.1,FAM15170-i1-1.1,FAM15190-i1-1.1,FAM15192-i1-1.1,FAM15300-i1-1.1,FAM15333-i1-1.1,FAM15346-i1-1.1,FAM15347-i1-1.1,FAM15381-i1-1.1,FAM15407-i1-1.1,FAM19015-i1-1.1,FAM19016-i1-1.1,FAM19020-i1-1.1,FAM19022-i1-1.1,FAM19023-i1-1.1,FAM19024-p1-1.1,FAM19025-p1-1.1,FAM19030-i2-1.1,FAM19031-i2-1.1,FAM19034-i1-1.1,FAM22019-i1-1.1,FAM22020-i1-1.1,FAM22021-p1-1.1,FAM23848-i1-1.1,FAM23852-i1-1.1,FAM23853-i1-1.1,FAM23855-i1-1.1,FAM23864-i1-1.1,FAM23867-i1-1.1,FAM23868-i1-1.1,FAM23869-i1-1.1,FAM23870-i1-1.1,FAM23877-p1-1.1,FAM24252-i1-1.1',
             random_state=42,
             n_cpus=7,
             outdir=self.tempdir,
@@ -89,13 +96,13 @@ class TestScoary(TestCase):
 
     def test_scoary_gauss_kmeans(self):
         scoary(
-            genes=get_path('new_ds', 'genes-hog'),
-            gene_info=get_path('new_ds', 'genes-hog-info'),
+            genes='../data/new_ds/N0.tsv',
+            gene_info='../data/new_ds/N0_best_names.tsv',
             gene_data_type='gene-list:\t',
-            traits=get_path('new_ds', 'traits-lc'),
+            traits='../data/new_ds/LC.tsv',
             trait_data_type=f'gaussian:kmeans:\t',
-            trait_info=get_path('new_ds', 'traits-lc-meta'),
-            isolate_info=get_path('new_ds', 'isolate-meta'),
+            trait_info='../data/new_ds/LC-meta.tsv',
+            isolate_info='../data/new_ds/isolate-meta.tsv',
             n_permut=200,
             restrict_to=RESTRICT_TO,
             random_state=42,
@@ -105,41 +112,17 @@ class TestScoary(TestCase):
             # pairwise=False
         )
 
-    def test_scoary_real(self):
+    def test_scoary_full(self):
         scoary(
             multiple_testing='bonferroni:0.1',
-            genes=get_path('full_ds', 'genes'),
-            gene_info=get_path('full_ds', 'gene-info'),
+            genes='../data/full_ds/N0.tsv',
+            gene_info='../data/full_ds/N0_best_names.tsv',
             gene_data_type='gene-list:\t',
-            traits=get_path('full_ds', 'traits'),
+            traits='../data/full_ds/traits.tsv',
             trait_data_type=f'gaussian:skip:\t:tied',  # {'tied', 'full', 'diag', 'spherical'}
-            trait_info=get_path('full_ds', 'trait-info'),
-            isolate_info=get_path('full_ds', 'isolate-info'),
+            trait_info='../data/full_ds/trait_info.tsv',
+            isolate_info='../data/full_ds/isolate_info.tsv',
             n_permut=600,
-            random_state=42,
-            n_cpus=8,
-            n_cpus_binarization=1,
-            # restrict_to=RESTRICT_TO,
-            max_genes=50,
-            # limit_traits=(12377, 12378),
-            limit_traits=(2000, 2400),
-            # limit_traits=(2330, 2340),
-            worst_cutoff=0.1,
-            outdir=self.tempdir,
-        )
-
-    def test_scoary_real_restr(self):
-        scoary(
-            multiple_testing_many_traits='bonferroni',
-            multiple_testing='bonferroni:0.1',
-            genes=get_path('full_ds', 'genes'),
-            gene_info=get_path('full_ds', 'gene-info'),
-            gene_data_type='gene-list:\t',
-            traits=get_path('full_ds', 'traits'),
-            trait_data_type=f'gaussian:skip:\t:tied',  # {'tied', 'full', 'diag', 'spherical'}
-            trait_info=get_path('full_ds', 'trait-info'),
-            isolate_info=get_path('full_ds', 'isolate-info'),
-            n_permut=300,
             random_state=42,
             n_cpus=8,
             n_cpus_binarization=1,
@@ -147,7 +130,7 @@ class TestScoary(TestCase):
             max_genes=50,
             # limit_traits=(12377, 12378),
             limit_traits=(2000, 2400),
-            # limit_traits=(2330, 2340),  # lc:Compound_7866
+            # limit_traits=(2330, 2340),
             worst_cutoff=0.1,
             outdir=self.tempdir,
         )
@@ -182,9 +165,9 @@ class TestScoary(TestCase):
         """
         Check if old scoary generates the same data (hamming similarity matrix)
         """
-        _, genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count', ignore=roary_ignore)
+        _, genes_df = load_genes('../data/tetracycline/Gene_presence_absence.csv', gene_data_type='gene-count', ignore=roary_ignore)
         tdm_new = pd.DataFrame(distance.squareform(distance.pdist(genes_df.T, 'hamming')))
-        tdm_old = np.flip(pd.read_csv(get_path('tetracycline', 'tdm'), index_col=0).values)  # has to be flipped
+        tdm_old = np.flip(pd.read_csv('../data/tetracycline/tetracycline_TDM.csv', index_col=0).values)  # has to be flipped
         np.fill_diagonal(tdm_old, 0)  # diagonal should be 0, not 1
         tdm_old = pd.DataFrame(tdm_old)
         self.assertTrue(np.isclose(tdm_old, tdm_new).all())
@@ -236,11 +219,23 @@ class TestScoary(TestCase):
         #     outdir=self.tempdir
         # )
         scoary(
-            genes=get_path('roary-list', 'genes').replace('.csv', '-b.csv'),
-            traits=get_path('roary-list', 'traits').replace('.csv', '-b.csv'),
+            genes='../data/roary-list/gene_presence_absence-b.csv',
+            traits='../data/roary-list/traits-b.csv',
             gene_data_type='gene-list:,',
             n_permut=1000,
             multiple_testing='native:0.05',
             n_cpus=1,
             outdir=self.tempdir
+        )
+
+    def test_scoary_pyseer(self):
+        scoary(
+            genes='../data/pyseer/gene_presence_absence.Rtab',
+            traits='../data/pyseer/resistances.pheno',
+            gene_data_type='gene-count:\t',
+            trait_data_type='binary:\t',
+            multiple_testing='bonferroni:0.05',
+            n_cpus=1,
+            outdir=self.tempdir,
+            pairwise=False
         )

@@ -39,8 +39,8 @@ class Test(TestCase):
             print()
 
     def test_tetracycline(self):
-        with open(get_path('tetracycline', 'tree')) as f:
+        with open('../data/tetracycline/ExampleTree.nwk') as f:
             newick = f.read()
-        expected_result = get_json('tetracycline', 'treelist')['as_list']
+        expected_result = get_json('../data/tetracycline/expected_result.json')['as_list']
         res = parse_newick(newick)
         self.assertEqual(res, expected_result)

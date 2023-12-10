@@ -72,6 +72,6 @@ def print_progress(
     res = f"[{'=' * round(i / n * n_bars):{n_bars}}] {text}"
 
     if not len(res) == width_total:
-        logging.warning('Failed to print progressbar!')
+        logging.warning('Something went wrong with the progressbar!')
 
     print(res, end=end)

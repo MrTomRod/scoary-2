@@ -15,78 +15,14 @@ logging.basicConfig()
 
 ROOT = dirname(dirname(__file__))
 
-DATA = {
-    'generated': {
-        'genes': 'Gene_presence_absence.csv',
-        'traits': 'Trait.csv',
-    },
-    'tetracycline': {
-        'genes': 'Gene_presence_absence.csv',
-        'gene-info': 'gene-info.tsv',
-        'traits': 'Tetracycline_resistance.csv',
-        'traits-numeric': 'Tetracycline_resistance_numeric.csv',
-        'restrict_to': 'Restrict_to.csv',
-        'tree': 'ExampleTree.nwk',
-        'treelist': 'expected_result.json',
-        'tdm': 'tetracycline_TDM.csv',
-        'scoary1-result': 'fisher_permute100.results.csv',
-    },
-    'small_ds': {
-        'genes': 'pres_abs.csv',
-        'traits': 'trait.csv',
-        't1': 't1.results.csv',
-        't2': 't2.results.csv',
-    },
-    'bigger_ds': {
-        'traits': 'trait_trees.csv',
-        'genes': 'pres_abs.csv',
-        'tree': 'newick.nwk',
-        'result-t1': 't1.results.csv',
-        'result-t2': 't2.results.csv',
-    },
-    'new_ds': {
-        'genes-og': 'Orthogroups.tsv',
-        'genes-hog': 'N0.tsv',
-        'genes-hog-info': 'N0_best_names.tsv',
-        'isolate-meta': 'isolate-meta.tsv',
-        'traits-lc-binary': 'LC-binary.tsv',
-        'traits-lc': 'LC.tsv',
-        'traits-lc-meta': 'LC-meta.tsv',
-        'traits-gc-vol': 'GC-VOL.tsv',
-        'traits-gc-vol-meta': 'none-meta.tsv',
-    },
-    'full_ds': {
-        'genes': 'N0.tsv',
-        'gene-info': 'N0_best_names.tsv',
-        'isolate-info': 'isolate_info.tsv',
-        'traits': 'traits.tsv',
-        'trait-info': 'trait_info.tsv',
-    },
-    'roary-list': {
-        'genes': 'gene_presence_absence.csv',
-        'traits': 'traits.csv',
-    },
-}
-
-VCF_DATA = {
-    'vcf': {
-        'vcf': 'Example.vcf',
-        'traits': 'ExampleVCFTrait.csv'
-    }
-}
-
 roary_ignore = ['Non-unique Gene name', 'Annotation', 'No. isolates', 'No. sequences', 'Avg sequences per isolate',
                 'Genome fragment', 'Order within fragment', 'Accessory Fragment', 'Accessory Order with Fragment', 'QC',
                 'Min group size nuc', 'Max group size nuc', 'Avg group size nuc']
 orthofinder_ignore = ['OG', 'Gene Tree Parent Clade']
 
 
-def get_path(ds: str, key: str, data=DATA):
-    return f'{ROOT}/data/{ds}/{data[ds][key]}'
-
-
-def get_json(ds: str, key: str, data=DATA):
-    with open(get_path(ds, key)) as f:
+def get_json(path: str):
+    with open(path) as f:
         return json.load(f)
 
 

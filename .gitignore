@@ -4,3 +4,4 @@ data/
 TEST_OUTPUT/
 TMP/
 *__pycache__*
+/benchmarking/binarization/simulations/

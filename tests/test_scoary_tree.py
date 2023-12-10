@@ -7,7 +7,7 @@ from scoary.ScoaryTree import *
 
 class TestTreeFunctions(TestCase):
     def test_tree_from_list_to_list(self):
-        expected_result = get_json('tetracycline', 'treelist')['as_list']
+        expected_result = get_json('../data/tetracycline/expected_result.json')['as_list']
         # convert to ScoaryTree
         scoary_tree = ScoaryTree.from_list(expected_result)
         # convert back to list
@@ -19,13 +19,13 @@ class TestTreeFunctions(TestCase):
         """
         Check if old scoary generates the equivalent tree based on genes presence/absence
         """
-        _, genes_df = load_genes(get_path('tetracycline', 'genes'), gene_data_type='gene-count', ignore=roary_ignore)
+        _, genes_df = load_genes('../data/tetracycline/Gene_presence_absence.csv', gene_data_type='gene-count', ignore=roary_ignore)
         # convert to ScoaryTree
         scoary_tree = ScoaryTree.from_presence_absence(genes_df)
         # convert to list
         list_tree = scoary_tree.to_list
         # compare to Scoary 1
-        expected_result = get_json('tetracycline', 'treelist')['as_list']
+        expected_result = get_json('../data/tetracycline/expected_result.json')['as_list']
 
         self.assertTrue(is_equivalent_tree(expected_result, list_tree))
 
@@ -33,7 +33,7 @@ class TestTreeFunctions(TestCase):
         """
         Check if newick tree is imported correctly
         """
-        expected_result = get_json('tetracycline', 'treelist')['as_newick']
+        expected_result = get_json('../data/tetracycline/expected_result.json')['as_newick']
         scoary_tree = ScoaryTree.from_newick(newick=expected_result)
         newick = scoary_tree.to_newick()
         self.assertEqual(expected_result, newick)
