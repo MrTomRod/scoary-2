@@ -211,13 +211,13 @@ def scoary(
         [p.start() for p in procs]
         [p.join() for p in procs]
 
-    step_2_end = datetime.now()
+    step_1_end = datetime.now()
     print_progress(
         len(traits), len(traits),
-        message='Step 1 complete!', start_time=ns.start_time, message_width=25,
+        message='Step 1 complete!', start_time=step_1_start, message_width=25,
         end='\n'
     )
-    logger.info(f'Step 1 took {step_2_end - step_1_start}')
+    logger.info(f'Step 1 took {step_1_end - step_1_start}')
 
     duplicated_traits = {trait: res for trait, res in trait_to_result.items() if type(res) is str}
     logger.info(f'Number of duplicated traits: {len(duplicated_traits)}')
@@ -260,7 +260,7 @@ def scoary(
     step_2_end = datetime.now()
     print_progress(
         len(traits_left), len(traits_left),
-        message='Step 2 complete!', start_time=ns.start_time, message_width=25,
+        message='Step 2 complete!', start_time=step_2_start, message_width=25,
         end='\n'
     )
     logger.info(f'Step 2 took {step_2_end - step_2_start}')
@@ -286,7 +286,7 @@ def scoary(
 
     logger.info('Complete success!')
 
-    logger.debug(f'Took {datetime.now() - start_time}')
+    logger.info(f'Took {datetime.now() - start_time}')
 
     if SCOARY_PRINT_CITATION:
         print(CITATION)
