@@ -7,7 +7,7 @@ association per trait. The results can be explored interactively with a simple, 
 
 
 [![bioRxiv](https://img.shields.io/badge/bioRxiv-2023.04.19.537353-b31b1b.svg)](https://www.biorxiv.org/content/10.1101/2023.04.19.537353v1.full)
-![Docker Image Version (latest semver)](https://img.shields.io/docker/v/troder/scoary-2?logo=docker&label=Docker&color=%231D63ED)
+[![Docker Image Version (latest semver)](https://img.shields.io/docker/v/troder/scoary-2?logo=docker&label=Docker&color=%231D63ED)](https://hub.docker.com/troder/scoary-2)
 [![DOI](https://zenodo.org/badge/445173674.svg)](https://zenodo.org/doi/10.5281/zenodo.10352170)
 
 
