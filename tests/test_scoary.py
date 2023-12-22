@@ -57,6 +57,7 @@ class TestScoary(TestCase):
     def test_scoary_long_binary(self):
         scoary(
             trait_wise_correction=True,
+            newicktree='../data/new_ds/SpeciesTree_rooted.txt',
             multiple_testing='fdr_bh:0.6',
             linkage_method='average',
             genes='../data/new_ds/N0.tsv',
@@ -129,7 +130,8 @@ class TestScoary(TestCase):
             restrict_to=RESTRICT_TO,
             max_genes=50,
             # limit_traits=(12377, 12378),
-            limit_traits=(2000, 2400),
+            limit_traits=(3750, 3760),
+            trait_wise_correction=True,
             # limit_traits=(2330, 2340),
             worst_cutoff=0.1,
             outdir=self.tempdir,

@@ -31,6 +31,8 @@ class Test(TestCase):
             ('(A,(B,(D,G)E)C);', ['A', [['B', [['D', 'G'], 'E']], 'C']]),
             ('(A,(B,(D,G)));', ['A', ['B', ['D', 'G']]]),
             ('(hodor one,(hodor-two,(hodor_3,0hodor 4)));', ['hodor one', ['hodor-two', ['hodor_3', '0hodor 4']]]),
+            ('(FAM18356-i1-1.1:0.289313,(FAM19471-i1-1.1:0.210374,(FAM23169-i1-1.1:0.0764835,FAM1079-i1-1.1:0.0778624)0.977444:0.115601));',
+             ['FAM18356-i1-1.1', ['FAM19471-i1-1.1', ['FAM23169-i1-1.1', 'FAM1079-i1-1.1']]])
         ]
 
         for n, expected_result in test_data:

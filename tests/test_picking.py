@@ -1,6 +1,6 @@
 from typing import Any, Callable
 
-from .init_tests import *
+from init_tests import *
 
 from scoary.utils import print_tree
 from scoary.scoary import *
@@ -107,9 +107,16 @@ class Test(TestCase):
         self.assertTrue(all(np.equal(mo_1, mo_2)), msg='opposing')
 
     def test_benchmark_tetracycline(self, run_scoary_1=True):
+        # HP Spectre x360 15-df0709nz (i7 8Gen 8565U)
         # Scoary1 took 23.241052357999614 sec
         # Scoary2 took 0.49214521629996855 sec
         # Scoary1 vs Scoary2: 47.22397290118921x improvement
+
+        # HP Spectre x360 14-ef2759nz (i7 13Gen 1355U)
+        # Scoary1 took 9.602997977599989 sec
+        # Scoary2 took 0.31401244160000485 sec
+        # Scoary1 vs Scoary2: 30.58158437503083x improvement
+
         tetr_tree = get_json('../data/tetracycline/expected_result.json')['as_list']
         _, tetr_genes_df = load_genes('../data/tetracycline/Gene_presence_absence.csv', gene_data_type='gene-count',
                                       ignore=roary_ignore)

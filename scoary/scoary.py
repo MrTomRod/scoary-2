@@ -157,6 +157,7 @@ def scoary(
         logger.info('Loading phylogenetic tree from newick file...')
         with open(newicktree) as f:
             tree = ScoaryTree.from_newick(f.read())
+        tree = tree.prune(genes_bool_df.columns)
     tree.write_newick(f'{outdir}/tree.nwk')
 
     all_labels = set(tree.labels())

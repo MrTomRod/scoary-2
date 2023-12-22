@@ -2,7 +2,6 @@ import os
 import logging
 import pandas as pd
 import numpy as np
-import scipy.stats as ss
 
 from .KeyValueStore import KeyValueStore
 from .picking import pick

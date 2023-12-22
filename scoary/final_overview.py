@@ -27,7 +27,7 @@ SCORES_CONFIG = {
         "color": "mediumpurple"
     },
     "best_fq*ep": {
-        "legend": "<i>fq+ep</i> score",
+        "legend": "<i>fq*ep</i> score",
         "marker-matplotlib": "*",
         "marker-html": "*",
         "color": "crimson"
@@ -51,7 +51,7 @@ def create_final_overview(
 ):
     # copy files from exploration app
     logger.info('Copying exploration app...')
-    exploration_app.copy_app(outdir, config=SCORES_CONFIG)
+    exploration_app.copy_app(outdir, config={'scores': SCORES_CONFIG})
 
     if isolate_info_df is not None:
         logger.info('Adding isolate_info.tsv...')

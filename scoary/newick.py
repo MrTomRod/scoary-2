@@ -1,7 +1,7 @@
 from re import compile
 
-BRANCH_LENTGHS = compile(r':[0-9]+(.[0-9]+)?')
-
+BRANCH_LENTGHS_COLON = compile(r':[0-9]+(\.[0-9]+)?(e-?[0-9]+)?')
+BRANCH_LENTGHS_BRACKET = compile(r'\)[0-9]+(.[0-9]+)?(e-?[0-9]+)?')
 
 class NewickParserException(Exception):
     pass
@@ -27,7 +27,8 @@ def parse_newick(newick_string: str) -> []:
 
     # strip and remove branch lengths
     newick_string = newick_string.strip()
-    newick_string = BRANCH_LENTGHS.sub(string=newick_string, repl='')
+    newick_string = BRANCH_LENTGHS_COLON.sub(string=newick_string, repl='')
+    newick_string = BRANCH_LENTGHS_BRACKET.sub(string=newick_string, repl=')')
 
     # sanity check
     if not newick_string.endswith(';'):

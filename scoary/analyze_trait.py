@@ -78,14 +78,14 @@ def analyze_trait_step_1_fisher(trait: str, ns: AnalyzeTraitNamespace, proc_id: 
     # Compute Fisher's test efficiently
     test_df = create_test_df(result_df)
     test_df = add_odds_ratio(test_df)
-    result_df = pd.merge(result_df, test_df, how="left", on='__contingency_table__', copy=False)
+    result_df = pd.merge(test_df, result_df, how="left", on='__contingency_table__', copy=False)
 
     # Perform multiple testing correction
     multiple_testing_df = result_df[['__pattern_id__', 'fisher_p']].drop_duplicates('__pattern_id__')
     if ns.trait_wise_correction:
         multiple_testing_df = multiple_testing_correction(
             multiple_testing_df, 'fisher_p', 'fisher_q',
-            ns.mt_f_method, ns.mt_f_cutoff, False
+            ns.mt_f_method, ns.mt_f_cutoff, True
         )
         if len(multiple_testing_df) == 0:
             logger.info(f'Found 0 genes for {trait=} after multiple testing correction!')
@@ -145,10 +145,14 @@ def analyze_trait_step_2_pairpicking(trait: str, ns: AnalyzeTraitNamespace, proc
         )
 
         if ns.worst_cutoff:
-            if not (result_df['worst'] <= ns.worst_cutoff).any():
+            keep = result_df['worst'] <= ns.worst_cutoff
+            if not keep.any():
                 logger.info(f'Found 0 genes for {trait=} '
                             f'after worst_cutoff={ns.worst_cutoff} filtration')
                 return None
+            result_df = result_df[keep]
+
+        assert result_df.fisher_p.is_monotonic_increasing, f'{result_df.fisher_p=} must be monotonic increasing!'
 
         if ns.max_genes:
             if len(result_df) > ns.max_genes:
