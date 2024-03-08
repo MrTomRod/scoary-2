@@ -292,8 +292,21 @@ def init_result_df(genes_bool_df: pd.DataFrame, trait_series: pd.Series) -> pd.D
 
     # Add contingency table, sensitivity and specificity
     result_df['__contingency_table__'] = [tuple(x) for x in result_df[['g+t+', 'g+t-', 'g-t+', 'g-t-']].to_numpy()]
-    result_df['sensitivity'] = (result_df['g+t+'] / n_pos * 100) if n_pos else 0
-    result_df['specificity'] = (result_df['g-t-'] / n_neg * 100) if n_neg else 0
+    if n_pos:
+        pos_sensitivity = (result_df['g+t+'] / n_pos * 100)  # use if positive g/t correlation
+        neg_sensitivity = (result_df['g-t+'] / n_pos * 100)  # use if negative g/t correlation
+    else:
+        pos_sensitivity = neg_sensitivity = pd.Series(0, index=result_df.index)
+
+    if n_neg:
+        pos_specificity = (result_df['g-t-'] / n_neg * 100)  # use if positive g/t correlation
+        neg_specificity = (result_df['g+t-'] / n_neg * 100)  # use if negative g/t correlation
+    else:
+        pos_specificity = neg_specificity = pd.Series(0, index=result_df.index)
+
+    keep_pos = (pos_sensitivity + pos_specificity) > (neg_sensitivity + neg_specificity)
+    result_df["sensitivity"] = pos_sensitivity.where(keep_pos, neg_sensitivity)
+    result_df["specificity"] = pos_specificity.where(keep_pos, neg_specificity)
 
     # Reset index so that Gene is its own column
     result_df.reset_index(inplace=True)

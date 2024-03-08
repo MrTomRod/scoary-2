@@ -445,7 +445,7 @@ plot(
         ('Runtime Scoary2 [sec] (simulated)', 'lightskyblue', plt.cm.Blues, 0.1)
     ],
     azim=-80,
-    save_path=f'data/benchmark_with_PySR.png'
+    save_path=f'data/benchmark_with_PySR.svg'
 )
 
 # %%

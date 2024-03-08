@@ -37,3 +37,10 @@ podman push troder/scoary-2:$SCOARY_VERSION
 podman tag troder/scoary-2 troder/scoary-2:latest
 podman push troder/scoary-2:latest
 ```
+
+## Docker / Zenodo links in Wiki
+
+Update Zenodo:
+1) Create a new release on GitHub (Title: `scoary-2:$SCOARY_VERSION`)
+2) Will automatically create a new DOI on Zenodo
+3) Make sure links are updated

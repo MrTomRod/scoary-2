@@ -218,9 +218,12 @@ def plot_all(df: pd.DataFrame, effect_sizes: [float] = [0.5, 1., 1.5, 2, 3.]):
 
     # fill missing values with max_rank + 20
     max_rank = df['Rank of causal gene'].max()
-    df = df.fillna(max_rank + 20)
+    df = df.fillna(max_rank + 100)
 
-    fig = plt.figure(figsize=(7, 14))
+    fig = plt.figure(figsize=(15, 5))
+    axs = fig.subplots(2, 5, height_ratios=[1, 2], sharey='row')
+    for ax in axs.flat:
+        ax.label_outer()
 
     def add_normal(ax, mean, sd, x, line_color='black', fill_color='red', alpha: float = 0.5):
         # Calculate mean and standard deviation
@@ -228,12 +231,11 @@ def plot_all(df: pd.DataFrame, effect_sizes: [float] = [0.5, 1., 1.5, 2, 3.]):
         ax.plot(x, y, color=line_color)
         ax.fill_between(x, y, color=fill_color, alpha=alpha)
 
-    for i, effect_size in enumerate(effect_sizes, start=1):
+    for i, effect_size in enumerate(effect_sizes):
         effect_size_str = str(effect_size).removesuffix('.0')
-        # get axes
-        ax_title = fig.add_subplot(5, 1, i)
-        ax_lineplot = fig.add_subplot(5, 2, i * 2)
-        ax_effect_size = fig.add_subplot(5, 2, i * 2 - 1)
+
+        ax_effect_size = axs.flat[i]
+        ax_lineplot = axs.flat[i + len(effect_sizes)]
 
         # plot effect size
         _center = effect_size / 2
@@ -241,19 +243,19 @@ def plot_all(df: pd.DataFrame, effect_sizes: [float] = [0.5, 1., 1.5, 2, 3.]):
         ax_effect_size.grid(False)
         ax_effect_size.set_xticks([])
         ax_effect_size.set_yticks([])
-        ax_effect_size.set_xlabel(f'Distribution of sampled traits')
+        # ax_effect_size.set_xlabel(f'Distribution of sampled traits')
         add_normal(ax_effect_size, 0, 1, x, fill_color='#a6cee3')
         add_normal(ax_effect_size, effect_size, 1, x, fill_color='#b2df8a')
         # add a dotted line from [0, 0.41] to [effect_size, 0.41]
-        ax_effect_size.plot([0, effect_size], [0.41, 0.41], color='black', linestyle='dotted')
+        ax_effect_size.plot([0, effect_size], [0.42, 0.42], color='black', linestyle='dotted')
         # add a letter d above the dashed line
-        ax_effect_size.text(effect_size / 2, 0.435, f'$ d \equal {effect_size_str} \sigma $', horizontalalignment='center', verticalalignment='center')
-        ax_effect_size.set_ylim(0, 0.47)
+        ax_effect_size.text(effect_size / 2, 0.445, f'$ d \equal {effect_size_str} \sigma $', horizontalalignment='center', verticalalignment='center')
+        ax_effect_size.set_ylim(0, 0.5)
 
         # set title
-        ax_title.set_title(f'Effect size: {effect_size_str}')
-        ax_title.grid(False)
-        ax_title.axis('off')
+        ax_effect_size.set_title(f'Effect size: {effect_size_str}')
+        # ax_title.grid(False)
+        # ax_title.axis('off')
 
         # plot lineplot
         sns.lineplot(
@@ -263,18 +265,19 @@ def plot_all(df: pd.DataFrame, effect_sizes: [float] = [0.5, 1., 1.5, 2, 3.]):
             ax=ax_lineplot,
             legend=False
         )
-        # ax_lineplot.set_ylim(250, 0)
+        ax_lineplot.set_ylim(1, 250)
+        ax_lineplot.set_xlim(25, 200)
         # make y axis logarithmic
-        ax_lineplot.set_yscale('log')
+        ax_lineplot.set_yscale('symlog')
         ax_lineplot.set_yticks([1, 2, 5, 10, 20, 50, 100])
         # ax_lineplot.get_yaxis().tick_right()
-        ax_lineplot.get_yaxis().set_label_position("right")
+        ax_lineplot.get_yaxis().set_label_position("left")
         ax_lineplot.get_yaxis().set_major_formatter(mpl.ticker.ScalarFormatter())
         ax_lineplot.set_xticks(df['Number of genomes'].unique())
 
     plt.tight_layout()
     # plt.show()
-    plt.savefig('out/effect_sizes.svg')
+    plt.savefig('out/effect_sizes_horizontal.svg')
 
 
 if __name__ == '__main__':
