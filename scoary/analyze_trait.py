@@ -290,10 +290,21 @@ def init_result_df(genes_bool_df: pd.DataFrame, trait_series: pd.Series) -> pd.D
     pattern_id = genes_bool_df_reduced.groupby(by=genes_bool_df_reduced.columns.to_list()).ngroup()
     result_df['__pattern_id__'] = pattern_id
 
-    # Add contingency table, sensitivity and specificity
+    # Add contingency table
     result_df['__contingency_table__'] = [tuple(x) for x in result_df[['g+t+', 'g+t-', 'g-t+', 'g-t-']].to_numpy()]
-    result_df['sensitivity'] = (result_df['g+t+'] / n_pos * 100) if n_pos else 0
-    result_df['specificity'] = (result_df['g-t-'] / n_neg * 100) if n_neg else 0
+
+    # Add sensitivity and specificity. Note that ome genes can be negatively
+    # correlated to the trait, so we need to check which option gives us the
+    # best sensitivity and specificity.
+    pos_sensitivity = (result_df['g+t+'] / n_pos * 100) if n_pos else 0
+    pos_specificity = (result_df['g-t-'] / n_neg * 100) if n_neg else 0
+    pos_average = (pos_sensitivity + pos_specificity) / 2
+    neg_sensitivity = (result_df['g-t+'] / n_pos * 100) if n_pos else 0
+    neg_specificity = (result_df['g+t-'] / n_neg * 100) if n_neg else 0
+    neg_average = (neg_sensitivity + neg_specificity) / 2
+    keep_pos = pos_average > neg_average
+    result_df["sensitivity"] = pos_sensitivity.where(keep_pos, neg_sensitivity)
+    result_df["specificity"] = pos_specificity.where(keep_pos, neg_specificity)
 
     # Reset index so that Gene is its own column
     result_df.reset_index(inplace=True)
