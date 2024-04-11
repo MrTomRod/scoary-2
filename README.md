@@ -6,7 +6,8 @@ or [Roary][roary] to traits. It reports a list of genes sorted by strength of
 association per trait. The results can be explored interactively with a simple, static HTML/JS app.
 
 
-[![bioRxiv](https://img.shields.io/badge/bioRxiv-2023.04.19.537353-b31b1b.svg)](https://www.biorxiv.org/content/10.1101/2023.04.19.537353v1.full)
+[![Publication](https://img.shields.io/badge/BMC%20Genome%20Biology-10.1186%2Fs13059--024--03233--7-blue)](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-024-03233-7)
+[![bioRxiv Preprint](https://img.shields.io/badge/bioRxiv-2023.04.19.537353-b31b1b.svg)](https://www.biorxiv.org/content/10.1101/2023.04.19.537353v1.full)
 [![Docker Image Version (latest semver)](https://img.shields.io/docker/v/troder/scoary-2?logo=docker&label=Docker&color=%231D63ED)](https://hub.docker.com/troder/scoary-2)
 [![DOI](https://zenodo.org/badge/445173674.svg)](https://zenodo.org/doi/10.5281/zenodo.10352170)
 
@@ -29,7 +30,7 @@ association per trait. The results can be explored interactively with a simple, 
 
 # Paper
 
-The Scoary2 preprint is now available on bioRxiv. Click [here](https://www.biorxiv.org/content/10.1101/2023.04.19.537353v1)) to see it!
+Please cite:
 
-> Roder, T. _et al._ Scoary2: Rapid association of phenotypic multi-omics data with microbial pan-genomes.
-> _BioRxiv_ (2023) doi:10.1101/2023.04.19.537353.
+> Roder, T. _et al._ _Scoary2_: rapid association of phenotypic multi-omics data with microbial pan-genomes.
+> _Genome Biol_ **25**, 93 (2024). https://doi.org/10.1186/s13059-024-03233-7
