@@ -39,7 +39,11 @@ class ConfintStore(KeyValueStore):
         self.con.commit()
 
 
-CONFINT_CACHE = ConfintStore(table_name='confint_cache', db_path=os.environ.get('CONFINT_DB', None))
+CONFINT_CACHE = ConfintStore(
+    table_name='confint_cache',
+    db_path=os.environ.get('CONFINT_DB', None),
+    disconnect=True
+)
 
 
 def create_permuted_df(labels: [str], n_positive: int, n_permut: int, random_state: int = None):
@@ -71,6 +75,8 @@ def permute_picking(
     n_neg = n_tot - n_pos
     labels = label_to_trait.keys()
 
+    CONFINT_CACHE.connect()
+
     n_reused = 0
 
     pvals = []
@@ -100,6 +106,8 @@ def permute_picking(
 
         pval = ((permuted_estimators >= estimator).sum() + 1) / (n_permut + 1)
         pvals.append(pval)
+
+    CONFINT_CACHE.disconnect()
 
     logger.debug(f'{trait}: reused {n_reused} out of {len(result_df)}')
 

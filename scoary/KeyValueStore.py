@@ -6,7 +6,7 @@ import sqlite3
 class KeyValueStore:
     table_name: str
 
-    def __init__(self, table_name, db_path: str = None):
+    def __init__(self, table_name, db_path: str = None, disconnect: bool = False):
         self.table_name = table_name
 
         if db_path is None:
@@ -19,6 +19,9 @@ class KeyValueStore:
         self.con, self.cur = self.get_cur()
         self.create_db()
 
+        if disconnect:
+            self.disconnect()
+
     def __str__(self):
         return f'KeyValueStore {self.table_name} ({self._db_path})'
 
@@ -30,6 +33,14 @@ class KeyValueStore:
             logging.warning(f'Failed to connect to db: {self._db_path}')
             raise e
         return con, cur
+
+    def connect(self):
+        self.con, self.cur = self.get_cur()
+
+    def disconnect(self):
+        self.cur.close()
+        self.con.close()
+        self.cur, self.con = None, None
 
     def __del__(self):
         try:
