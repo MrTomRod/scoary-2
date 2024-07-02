@@ -1,7 +1,8 @@
-import os
 import logging
-import pandas as pd
+import os
+
 import numpy as np
+import pandas as pd
 
 from .KeyValueStore import KeyValueStore
 from .picking import pick
@@ -39,9 +40,6 @@ class ConfintStore(KeyValueStore):
         self.con.commit()
 
 
-CONFINT_CACHE = ConfintStore(table_name='confint_cache', db_path=os.environ.get('CONFINT_DB', None))
-
-
 def create_permuted_df(labels: [str], n_positive: int, n_permut: int, random_state: int = None):
     if random_state:
         np.random.seed(random_state)
@@ -74,6 +72,9 @@ def permute_picking(
     n_reused = 0
 
     pvals = []
+    CONFINT_CACHE = ConfintStore(table_name='confint_cache',
+                                 db_path=os.environ.get('CONFINT_DB', None))
+
     for _, row in result_df.iterrows():
         label_to_gene = genes_bool_df.loc[row.Gene]
         unique_topology = tree.uniquify(label_to_gene)
