@@ -364,9 +364,9 @@ CITATION = f'''
 
 
 If you use Scoary2 ({get_version()}), please cite:
-Roder, T. et al. Scoary2: Rapid association of phenotypic multi-omics 
-data with microbial pan-genomes.
-BioRxiv (2023) doi:10.1101/2023.04.19.537353.
+Roder, T. et al. Scoary2: rapid association of phenotypic multi-omics 
+data with microbial pan-genomes
+BMC Genome Biology (2024) doi:10.1186/s13059-024-03233-7
 '''.strip('\n')
 
 
