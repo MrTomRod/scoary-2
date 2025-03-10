@@ -70,7 +70,12 @@ def scoary(
     small, use n_cpus=1
     :param n_cpus_binarization: Number of CPUs that should be used for binarization. Default: one tenth of n_cpus
     :param trait_data_type: "<method>:<?cutoff>:<?covariance_type>:<?alternative>:<?delimiter>" How to read the traits
-     table. Example: "gene-list:\\t" for OrthoFinder N0.tsv table
+     table. Example: "gene-list:\\t" for OrthoFinder N0.tsv table. Possible values:
+      *method*: {'gaussian', 'kmeans'};
+      *delimiter*: any single character (default: ',');
+      *cutoff*: .5 <= cutoff < 1 (default: 0.85);
+      *covariance_type*: {'tied', 'full', 'diag', 'spherical'} (default: tied);
+      *alternative*: {'skip', 'kmeans'} (default: skip)
     :param gene_data_type: "<data_type>:<?delimiter>" How to read the genes table. Example: "gene-list:\\t" for
      OrthoFinder N0.tsv table
     :param force_binary_clustering: Force clustering of binary data even if numeric data is available
