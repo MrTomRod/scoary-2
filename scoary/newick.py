@@ -1,7 +1,7 @@
 from re import compile
 
 BRANCH_LENTGHS_COLON = compile(r':[0-9]+(\.[0-9]+)?(e-?[0-9]+)?')
-BRANCH_LENTGHS_BRACKET = compile(r'\)[0-9]+(.[0-9]+)?(e-?[0-9]+)?')
+BRANCH_LENTGHS_BRACKET = compile(r'\)[0-9]+(\.[0-9]+)?(e-?[0-9]+)?')
 
 class NewickParserException(Exception):
     pass
