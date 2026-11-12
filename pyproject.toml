@@ -1,37 +1,35 @@
-[tool.poetry]
+[project]
 name = "scoary-2"
-version = "0.0.15"
+version = "0.0.16"
 description = "Scoary2: Associate genes with traits!"
-authors = ["MrTomRod <roder.thomas@gmail.com>"]
+authors = [{ name = "MrTomRod", email = "roder.thomas@gmail.com" }]
 readme = "README.md"
-license = "GPL3"
-packages = [
-    { include = "scoary" }
+license = "GPL-3.0-only"
+license-files = ["LICENCE.md"]
+requires-python = ">=3.14"
+dependencies = [
+    "numba>=0.62",  # first release supporting Python 3.14
+    "pandas>=3,<4",
+    "scipy>=1.16",
+    "scikit-learn>=1.7",
+    "fast-fisher>=0.0.5",
+    "matplotlib>=3.10",
+    "statsmodels>=0.14.5",
+    "fire>=0.7",
+    "mgwas-data-exploration-app>=0.1.1",
 ]
 
-
-[tool.poetry.scripts]
+[project.scripts]
 scoary2 = "scoary.scoary:main"
 vcf2scoary = "scoary.vcf2scoary:main"
 
+[project.urls]
+Homepage = "https://github.com/MrTomRod/scoary-2"
 
-[tool.poetry.dependencies]
-python = ">=3.10,<3.11"
-numba = "^0.58.0"
-pandas = "^2"
-scipy = "^1.7.3"
-scikit-learn = "^1.0.2"
-fast-fisher = "^0.0.4"
-matplotlib = "^3.5.2"
-statsmodels = "^0.14.0"
-fire = "^0.5.0"
-mgwas-data-exploration-app = "^0.1.0"
-
-
-[tool.poetry.dev-dependencies]
-ete3 = "^3.1.2"
-biotite = "^0.38.0"
-pytest = "^8"
+[dependency-groups]
+dev = [
+    "pytest>=8",
+]
 
 
 [tool.pytest.ini_options]
@@ -43,5 +41,9 @@ markers = [
 
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.9,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "scoary"
+module-root = ""

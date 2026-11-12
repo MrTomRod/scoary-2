@@ -2,7 +2,7 @@ import itertools
 import logging
 
 import pytest
-from fast_fisher.fast_fisher_numba import test1t as fisher_exact_two_tailed
+from fast_fisher.fast_fisher_cython import test1t as fisher_exact_two_tailed
 from scipy.stats import fisher_exact
 
 from scoary.utils import parse_correction, split_into_parts, fisher_id, is_int, is_float, load_info_file

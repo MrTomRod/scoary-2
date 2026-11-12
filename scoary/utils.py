@@ -1,4 +1,5 @@
 import importlib.metadata
+import inspect
 import os
 import sys
 import json
@@ -260,7 +261,7 @@ class MockLock:
 class AbstractNamespace:
     @classmethod
     def create_namespace(cls, ns, properties: {str: Any}):
-        for name in cls.__dict__['__annotations__'].keys():
+        for name in inspect.get_annotations(cls):
             setattr(ns, name, properties[name])
         return ns
 
@@ -273,7 +274,7 @@ def grasp_namespace(cls, ns):
     :return: MockNameSpace
     """
     new_ns = cls()
-    for name in cls.__dict__['__annotations__'].keys():
+    for name in inspect.get_annotations(cls):
         value = getattr(ns, name)
         if name in ['lock', 'counter']:
             setattr(new_ns, name, value)

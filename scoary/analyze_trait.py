@@ -5,7 +5,7 @@ from collections import defaultdict
 import numpy as np
 import pandas as pd
 from statsmodels.stats.multitest import multipletests
-from fast_fisher.fast_fisher_numba import odds_ratio, test1t as fisher_exact_two_tailed
+from fast_fisher.fast_fisher_cython import odds_ratio, test1t as fisher_exact_two_tailed
 from queue import Empty
 
 from .ScoaryTree import ScoaryTree

@@ -10,3 +10,4 @@ TMP/
 # personal, dataset-driven test scripts (not shared)
 tests_local/
 !tests/data/
+.venv/

@@ -1,6 +1,6 @@
 from functools import cache
 
-from numba import njit
+from numba import njit, types
 import numpy as np
 import pandas as pd
 from scipy.stats import binomtest
@@ -183,7 +183,8 @@ def apply_binomtest(max_contr, max_suppo, max_oppos):
 # values[n, 0, 4] -> max supporting pairs for trait n if condition 'nf' is added
 
 
-@njit('int64[:, ::3, ::5](boolean, boolean[:])',
+# trait_b_list is read-only: pandas >= 3 (copy-on-write) returns read-only arrays from .to_numpy()
+@njit(types.int64[:, :, :](types.boolean, types.Array(types.boolean, 1, 'A', readonly=True)),
       cache=True, nogil=True, boundscheck=False, parallel=False)  # prange not better
 def init_leaf(trait_a: bool, trait_b_list: np.array) -> np.array:
     n_traits = trait_b_list.shape[0]

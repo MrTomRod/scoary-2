@@ -8,13 +8,23 @@ Create update:
 2) Create new package and upload:
 
 ```bash
-SCOARY_VERSION="?.?.?"
+SCOARY_VERSION="?.?.?"   # or: uv version --bump patch
+# run tests
+uv run pytest
 # build: will create files in dist/
-poetry build
-# test: install .whl file
-pip install -U dist/scoary_2-$SCOARY_VERSION-py3-none-any.whl
+uv build
+# test: install .whl file into a throwaway environment
+uv run --isolated --with dist/scoary_2-$SCOARY_VERSION-py3-none-any.whl scoary2 --help
 # upload
-poetry publish
+uv publish --username __token__ dist/*$SCOARY_VERSION*
+```
+
+## Development
+
+```bash
+uv sync           # create .venv with Python 3.14 and all (dev) dependencies
+uv run pytest     # run unit tests (skip slow end-to-end runs: -m "not slow")
+uv run scoary2 --help
 ```
 
 ## Docker / Podman
