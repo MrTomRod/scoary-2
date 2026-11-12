@@ -1,127 +1,112 @@
 import pandas as pd
+import pytest
+from scipy.stats import fisher_exact
 
-from init_tests import *
-from datetime import datetime
+from scoary.analyze_trait import init_result_df, create_test_df, add_odds_ratio, multiple_testing_correction, \
+    pair_picking
 from scoary.ScoaryTree import ScoaryTree
-from scoary.load_genes import load_genes
-from scoary.load_traits import load_traits
-from scoary.analyze_trait import init_result_df, create_test_df, add_odds_ratio, pair_picking
+from conftest import TEST_DATA
 
 
-def generate_fake_traits(genes_df: pd.DataFrame) -> {str: bool}:
-    label_to_trait = {}
-    label_to_trait.update({l: True for l in genes_df.columns[:11]})
-    label_to_trait.update({l: False for l in genes_df.columns[89:]})
-    return pd.Series(label_to_trait, dtype='boolean')
+@pytest.fixture
+def small():
+    #            s1     s2     s3     s4     s5     s6
+    genes = pd.DataFrame({
+        'pos': [True, True, True, False, False, False],  # perfect positive association
+        'neg': [False, False, False, True, True, True],  # perfect negative association
+        'mix': [True, False, True, True, False, False],
+        'core': [True] * 6,
+    }, index=['s1', 's2', 's3', 's4', 's5', 's6']).T
+    genes.index.name = 'Gene'  # as set by load_genes
+    trait = pd.Series([True, True, True, False, False, False],
+                      index=['s1', 's2', 's3', 's4', 's5', 's6'], dtype='boolean')
+    return genes, trait
 
 
-class TestScoary(TestCase):
-    def test_create_result_df(self):
-        _, genes_df = load_genes('../data/tetracycline/Gene_presence_absence.csv', gene_data_type='gene-count', ignore=roary_ignore)
-        result_df = init_result_df(genes_df, trait_series=generate_fake_traits(genes_df))
-        self.assertEqual(
-            result_df.columns.tolist(),
-            ['Gene', 'g+t+', 'g+t-', 'g-t+', 'g-t-', '__contingency_table__', 'sensitivity', 'specificity']
-        )
+def test_init_result_df_contingency(small):
+    genes, trait = small
+    df = init_result_df(genes, trait).set_index('Gene')
 
-    def test_contingency_test(self):
-        _, genes_df = load_genes('../data/tetracycline/Gene_presence_absence.csv', gene_data_type='gene-count', ignore=roary_ignore)
-        result_df = init_result_df(genes_df, trait_series=generate_fake_traits(genes_df))
-        test_df = create_test_df(result_df=result_df)
-        self.assertEqual(['__contingency_table__', 'fisher_p'], test_df.columns.tolist())
-        print(f"Done: minpval={test_df.fisher_p.min()}")
+    assert 'core' not in df.index, 'genes present in all isolates must be dropped'
+    assert df.loc['pos', '__contingency_table__'] == (3, 0, 0, 3)
+    assert df.loc['neg', '__contingency_table__'] == (0, 3, 3, 0)
+    assert df.loc['mix', '__contingency_table__'] == (2, 1, 1, 2)
+    for col in ['g+t+', 'g+t-', 'g-t+', 'g-t-']:
+        assert (df[col] >= 0).all()
+    assert (df[['g+t+', 'g+t-', 'g-t+', 'g-t-']].sum(axis=1) == 6).all()
 
-    def test_odds_ratio(self):
-        _, genes_df = load_genes('../data/tetracycline/Gene_presence_absence.csv', gene_data_type='gene-count', ignore=roary_ignore)
-        genes_df = genes_df[:100]  # only first 100 rows
-        test_df = init_result_df(genes_df, generate_fake_traits(genes_df))
 
-        # apply function
-        test_df = add_odds_ratio(test_df)
-        self.assertEqual(
-            test_df.columns.tolist(),
-            ['Gene', 'g+t+', 'g+t-', 'g-t+', 'g-t-', '__contingency_table__', 'sensitivity', 'specificity',
-             'odds_ratio']
-        )
+def test_sensitivity_specificity(small):
+    genes, trait = small
+    df = init_result_df(genes, trait).set_index('Gene')
+    assert df.loc['pos', ['sensitivity', 'specificity']].tolist() == [100, 100]
+    # regression test for #7: negatively correlated genes are scored by their absence
+    assert df.loc['neg', ['sensitivity', 'specificity']].tolist() == [100, 100]
+    assert df.loc['mix', 'sensitivity'] == pytest.approx(200 / 3)
 
-        # calculate odds_ratio with fisher_exact
-        fisher_ors = test_df.apply(
-            lambda row: fisher_exact([[row['g+t+'], row['g+t-']], [row['g-t+'], row['g-t-']]])[0], axis=1)
 
-        # check if result is identical
-        for manual_or, fisher_or in zip(test_df['odds_ratio'], fisher_ors):
-            self.assertTrue(is_equivalent(manual_or, fisher_or))
+def test_init_result_df_requires_boolean(small):
+    genes, trait = small
+    with pytest.raises(AssertionError):
+        init_result_df(genes, trait.astype(bool))
 
-    def test_init_result_df_performance(self):
-        _, genes_df = load_genes('../data/new_ds/N0.tsv', gene_data_type='gene-list:\t')
-        ltt = generate_fake_traits(genes_df)
-        start = datetime.now()
-        result_df = init_result_df(genes_df, trait_series=ltt)
-        end = datetime.now()
-        print(result_df)
-        print('took:', end - start)
 
-    def test_tetracycline(self):
-        _, genes_df = load_genes('../data/tetracycline/Gene_presence_absence.csv', gene_data_type='gene-count', ignore=roary_ignore)
-        _, traits_df = load_traits('../data/tetracycline/Tetracycline_resistance.csv', trait_data_type='binary:,')
-        trait_series = traits_df['Tetracycline_resistance']
+def test_create_test_df(small):
+    genes, trait = small
+    result_df = init_result_df(genes, trait)
+    test_df = create_test_df(result_df)
+    assert test_df['fisher_p'].is_monotonic_increasing
+    for _, row in test_df.iterrows():
+        a, b, c, d = row['__contingency_table__']
+        assert row['fisher_p'] == pytest.approx(fisher_exact([[a, b], [c, d]])[1])
 
-        # calculate sensitivity and specificity
-        test_df = init_result_df(
-            genes_df,
-            trait_series=pd.Series(
-                {l: bool(v) for l, v in trait_series.items() if v in (0, 1)},
-                dtype='boolean'
-            )
-        )
-        # calculate odds_ratio
-        test_df = add_odds_ratio(test_df)
-        # calculate pairwise comparisons
-        tree = ScoaryTree.from_list(get_json('../data/tetracycline/expected_result.json')['as_list'])
-        assert set(tree.labels()) == set(genes_df.columns)
-        test_df = pair_picking(test_df, genes_df, tree=tree, label_to_trait=trait_series)
 
-        # load expected result from scoary 1
-        expected_result = pd.read_csv('../data/tetracycline/fisher_permute100.results.csv')
+def test_add_odds_ratio():
+    test_df = pd.DataFrame({'__contingency_table__': [(4, 1, 2, 8)]})
+    add_odds_ratio(test_df)
+    assert test_df['odds_ratio'].iloc[0] == pytest.approx((4 * 8) / (1 * 2))
 
-        test_df.set_index('Gene', inplace=True)
 
-        # check if result is identical
-        for i, row in expected_result.iterrows():
-            table = (row.Number_pos_present_in,
-                     row.Number_neg_present_in,
-                     row.Number_pos_not_present_in,
-                     row.Number_neg_not_present_in)
-            new_row = test_df.loc[row.Gene]
-            new_table = tuple(int(new_row[c]) for c in ('g+t+', 'g+t-', 'g-t+', 'g-t-'))
+def test_multiple_testing_correction_native():
+    df = pd.DataFrame({'p': [0.001, 0.01, 0.04, 0.2]})
+    out = multiple_testing_correction(df.copy(), 'p', 'q', method='native', cutoff=0.05)
+    assert out['p'].tolist() == [0.001, 0.01, 0.04]  # native: filter on raw p-value
+    assert out['q'].tolist() == pytest.approx([0.004, 0.04, 0.16])  # q = bonferroni
 
-            self.assertEqual(table, new_table)
-            self.assertAlmostEqual(
-                row.Odds_ratio, new_row.odds_ratio,
-                msg=f'Failed to calculate odds_ratio for {row.Gene}: {row.Odds_ratio} != {new_row.odds_ratio}'
-            )
-            self.assertAlmostEqual(
-                row.Sensitivity, new_row.sensitivity,
-                msg=f'Failed to calculate sensitivity for {row.Gene}: {row.Odds_ratio} != {new_row.odds_ratio}'
-            )
-            self.assertAlmostEqual(
-                row.Specificity, new_row.specificity,
-                msg=f'Failed to calculate specificity for {row.Gene}: {row.Odds_ratio} != {new_row.odds_ratio}'
-            )
 
-            xx = [
-                (row.Max_Pairwise_comparisons, new_row.contrasting),
-                (row.Max_supporting_pairs, new_row.supporting),
-                (row.Max_opposing_pairs, new_row.opposing),
-                (row.Best_pairwise_comp_p, new_row.best),
-                (row.Worst_pairwise_comp_p, new_row.worst)
-            ]
-            try:
-                self.assertEqual(row.Max_Pairwise_comparisons, new_row.contrasting)
-                self.assertEqual(row.Max_supporting_pairs, new_row.supporting)
-                self.assertEqual(row.Max_opposing_pairs, new_row.opposing)
-                self.assertAlmostEqual(row.Best_pairwise_comp_p, new_row.best)
-                self.assertAlmostEqual(row.Worst_pairwise_comp_p, new_row.worst)
-            except Exception as e:
-                print(i, row.Gene, xx)
-                self.fail(msg=str(e))
+def test_multiple_testing_correction_bonferroni():
+    df = pd.DataFrame({'p': [0.001, 0.01, 0.04, 0.2]})
+    out = multiple_testing_correction(df.copy(), 'p', 'q', method='bonferroni', cutoff=0.05)
+    assert out['p'].tolist() == [0.001, 0.01]
+
+
+def test_tetracycline_matches_scoary_1(tetracycline_genes, tetracycline_traits, tetracycline_tree_list):
+    """Regression test: contingency tables, odds ratios and pair picking must match Scoary 1."""
+    trait = tetracycline_traits['Tetracycline_resistance']
+    result_df = init_result_df(tetracycline_genes, trait_series=trait.astype('boolean'))
+    result_df = add_odds_ratio(result_df)
+    tree = ScoaryTree.from_list(tetracycline_tree_list)
+    result_df = pair_picking(result_df, tetracycline_genes, tree=tree, label_to_trait=trait)
+    result_df.set_index('Gene', inplace=True)
+
+    expected = pd.read_csv(TEST_DATA / 'fisher_permute100.results.csv')
+    assert len(expected) > 0
+    for _, row in expected.iterrows():
+        new = result_df.loc[row.Gene]
+        assert (row.Number_pos_present_in, row.Number_neg_present_in,
+                row.Number_pos_not_present_in, row.Number_neg_not_present_in) == \
+               tuple(int(new[c]) for c in ('g+t+', 'g+t-', 'g-t+', 'g-t-')), row.Gene
+        assert new.odds_ratio == pytest.approx(row.Odds_ratio), row.Gene
+        # Scoary 1 always reports sensitivity/specificity for presence of the gene. Scoary 2 (since #7)
+        # reports them for absence if the gene is negatively associated, i.e. 100 - Scoary 1's value.
+        if row.Sensitivity + row.Specificity >= 100:
+            exp_sens, exp_spec = row.Sensitivity, row.Specificity
+        else:
+            exp_sens, exp_spec = 100 - row.Sensitivity, 100 - row.Specificity
+        assert new.sensitivity == pytest.approx(exp_sens), row.Gene
+        assert new.specificity == pytest.approx(exp_spec), row.Gene
+        assert new.contrasting == row.Max_Pairwise_comparisons, row.Gene
+        assert new.supporting == row.Max_supporting_pairs, row.Gene
+        assert new.opposing == row.Max_opposing_pairs, row.Gene
+        assert new.best == pytest.approx(row.Best_pairwise_comp_p), row.Gene
+        assert new.worst == pytest.approx(row.Worst_pairwise_comp_p), row.Gene

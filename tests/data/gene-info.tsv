@@ -1,0 +1,4 @@
+Gene	Annotation	DUMMY
+TetRCG	A fictitious gene known to cause resistance against tetracycline	dummy1
+gene_8004	A gene with no relevance to tetracycline resistance	dummy2
+gene_4006	A gene with no relevance to tetracycline resistance	dummy2

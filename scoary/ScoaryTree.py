@@ -17,7 +17,6 @@ class ScoaryTree:
     label: Optional[str] = None
     is_leaf: bool = False
     _values: Optional[np.ndarray] = None
-    _prune = False
 
     def __init__(self, left: ScoaryTree = None, right: ScoaryTree = None, label: str = None):
         if left is None and right is None:
@@ -102,109 +101,6 @@ class ScoaryTree:
 
         return pruned_tree
 
-    def prune_nonrecursive(self, labels: [str]) -> ScoaryTree:
-        if self.is_leaf:
-            assert [self.label] == labels, f'Pruning went wrong. {[self.label]} != {labels}'
-            return ScoaryTree(label=self.label)
-
-        n_labels_found = 0
-
-        root = ScoaryTree(left=self.left, right=self.right)
-
-        stack = [(root, 'right'), (root, 'left')]
-
-        while stack:
-            current_parent, current_direction = stack[-1]
-            current_node: ScoaryTree = getattr(current_parent, current_direction)
-
-            if current_node.is_leaf:
-                # current node is leaf
-
-                this = ScoaryTree(label=current_node.label)
-
-                if current_node.label in labels:
-                    n_labels_found += 1
-                else:
-                    this._prune = True  # mark for pruning
-
-                # append self to parent
-                setattr(current_parent, current_direction, this)
-
-                if current_direction == 'right':
-                    # prune
-                    current_parent.__prune()
-                    stack.pop()
-
-                    # found terminal node
-                    # # GO UP UNTIL CAN GO RIGHT
-                    while stack:
-                        ancestor_node, ancestor_direction = stack[-1]
-                        if ancestor_direction == 'right':
-                            ancestor_node.__prune()
-                            stack.pop()
-                        else:
-                            break
-
-                    if not stack:
-                        print(f'done\n{self}\n{root}')
-                        break
-
-                # pop left node -> go right next
-                stack.pop()
-
-            else:
-                this = ScoaryTree(left=current_node.left, right=current_node.right)
-                stack.extend([(this, 'right'), (this, 'left')])
-
-                # append self to parent
-                setattr(current_parent, current_direction, this)
-
-        return root
-
-    def copy_nonrecursive(self) -> ScoaryTree:
-        return self.rename_nonrecursive(func=lambda label: label)
-
-    def rename_nonrecursive(self, func: Callable):
-        if self.is_leaf:
-            return ScoaryTree(label=func(self.label))
-
-        root = ScoaryTree(left=self.left, right=self.right)
-
-        stack = [(root, 'right'), (root, 'left')]
-
-        while stack:
-            current_parent, current_direction = stack[-1]
-            current_node: ScoaryTree = getattr(current_parent, current_direction)
-
-            if current_node.is_leaf:
-                # current node is leaf
-                this = ScoaryTree(label=func(current_node.label))
-
-                # append self to parent
-                setattr(current_parent, current_direction, this)
-
-                if current_direction == 'right':
-                    # found terminal node
-                    # # GO UP UNTIL CAN GO RIGHT
-                    while stack and stack[-1][1] == 'right':
-                        stack.pop()
-
-                    if not stack:
-                        print(f'done\n{self}\n{root}')
-                        break
-
-                # pop left node -> go right next
-                stack.pop()
-
-            else:
-                this = ScoaryTree(left=current_node.left, right=current_node.right)
-                stack.extend([(this, 'right'), (this, 'left')])
-
-                # append self to parent
-                setattr(current_parent, current_direction, this)
-
-        return root
-
     def rename(self, func: Callable):
         """
         Apply a function to each leaf label.
@@ -253,19 +149,3 @@ class ScoaryTree:
                                        columns=genes_df.columns)
         tree_as_list = upgma(distance_matrix)
         return cls.from_list(tree_as_list)
-
-    def __prune(self):
-        if self.left._prune and self.right._prune:
-            self._prune = True
-        elif self.left._prune:
-            # become right
-            self.label = self.right.label
-            self.is_leaf = self.right.is_leaf
-            self.left = self.right.left
-            self.right = self.right.right
-        elif self.right._prune:
-            # become left
-            self.label = self.left.label
-            self.is_leaf = self.left.is_leaf
-            self.right = self.left.right
-            self.left = self.left.left

@@ -31,6 +31,15 @@ mgwas-data-exploration-app = "^0.1.0"
 [tool.poetry.dev-dependencies]
 ete3 = "^3.1.2"
 biotite = "^0.38.0"
+pytest = "^8"
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "tests"]
+markers = [
+    "slow: end-to-end runs of the full pipeline (deselect with '-m \"not slow\"')",
+]
 
 
 [build-system]

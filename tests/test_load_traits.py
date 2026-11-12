@@ -1,57 +1,83 @@
-from init_tests import *
-from scoary.load_traits import load_numeric, load_binary, apply_kmeans, apply_gm, binarize, load_traits
+import numpy as np
+import pandas as pd
+import pytest
 
-traits_bin = '../data/tetracycline/Tetracycline_resistance.csv'
-traits_num = '../data/tetracycline/Tetracycline_resistance_numeric.csv'
+from scoary.load_traits import load_traits, parse_params
+from conftest import TEST_DATA
+
+BINARY_CSV = """\
+,t1,t2
+s1,1,0
+s2,0,1
+s3,1,
+s4,0,1
+"""
 
 
-class Test(TestCase):
-    def test_load_binary(self):
-        binary_df = load_binary(traits=traits_bin, delimiter=',')
-        print(binary_df)
+@pytest.mark.parametrize('s, expected', [
+    ('binary', ('binary', ',', 0.85, 'tied', 'skip')),
+    ('binary:\t', ('binary', '\t', 0.85, 'tied', 'skip')),
+    ('gaussian:kmeans:.9:full:;', ('gaussian', ';', 0.9, 'full', 'kmeans')),
+    ('kmeans', ('kmeans', ',', 0.85, 'tied', 'skip')),
+])
+def test_parse_params(s, expected):
+    assert parse_params(s) == expected
 
-    def test_load_numeric(self):
-        numeric_df = load_numeric(traits=traits_num, delimiter=',')
-        print(numeric_df)
 
-    def test_binarize_kmeans(self):
-        numeric_df = load_numeric(traits=traits_num, delimiter=',')
-        for alternative in ['skip', 'kmeans']:
-            for cutoff in [.5, .7, .9]:
-                for covar_type in ['full', 'tied', 'diag', 'spherical']:
-                    binary_df = binarize(
-                        numeric_df, method='kmeans', random_state=42, n_cpus=1,
-                        cutoff=cutoff, covariance_type=covar_type,
-                        alternative=alternative, outdir=None
-                    )
+@pytest.mark.parametrize('bad', ['foo', 'gaussian:0.3', 'gaussian:full:tied', 'binary:,:;'])
+def test_parse_params_rejects(bad):
+    with pytest.raises(AssertionError):
+        parse_params(bad)
 
-    def test_binarize_gaussian_nonconverging(self):
-        # Tetracycline trait cannot be binarized with cutoff=0.999
-        numeric_df = load_numeric(traits=traits_num, delimiter=',')
-        for method, n_expected_columns in [('gaussian', 1), ('kmeans', 2)]:
-            binary_df = binarize(
-                numeric_df, method=method, random_state=42, n_cpus=1,
-                cutoff=0.9998, covariance_type='full',
-                alternative='skip', outdir=None
-            )
-            self.assertEqual(n_expected_columns, len(binary_df.columns),
-                             f'{method=}; {n_expected_columns=}; {binary_df.columns=}')
 
-    def test_illegal(self):
-        with self.assertRaises(AssertionError):
-            numeric_df, traits_df = load_traits(traits_num, trait_data_type=f'gaussian:0.4999', random_state=42)
-        with self.assertRaises(AssertionError):
-            numeric_df, traits_df = load_traits(traits_num, trait_data_type=f'gaussian:1', random_state=42)
-        with self.assertRaises(AssertionError):
-            # fails because no traits can be binarized. Certainty is never high enough.
-            numeric_df, traits_df = load_traits(traits_num, trait_data_type=f'gaussian:.999999999999', random_state=42)
+def test_load_binary(tmp_path):
+    p = tmp_path / 'traits.csv'
+    p.write_text(BINARY_CSV)
+    numeric_df, traits_df = load_traits(str(p), 'binary:,')
+    assert numeric_df is None
+    assert traits_df.index.name == 'Isolate'
+    assert traits_df.index.tolist() == ['s1', 's2', 's3', 's4']
+    assert (traits_df.dtypes == 'boolean').all()
+    assert traits_df['t1'].tolist() == [True, False, True, False]
+    assert pd.isna(traits_df.loc['s3', 't2'])  # missing values are kept as NA
 
-    def test_multiprocessing(self):
-        for n_cpus in [1, 5]:
-            numeric_df, traits_df = load_traits(
-                '../data/new_ds/LC.tsv',
-                trait_data_type='gaussian:skip:\t',
-                ignore='Starter-only-5A,FAMIX,Starter-only-10,Starter-only-7,mixture',
-                n_cpus=n_cpus, limit_traits=(0, 10),
-                outdir=f'{ROOT}/TEST_OUTPUT'
-            )
+
+def test_load_binary_limit_and_filter(tmp_path):
+    p = tmp_path / 'traits.csv'
+    p.write_text(BINARY_CSV)
+    _, traits_df = load_traits(str(p), 'binary:,', limit_traits=(1, 2))
+    assert traits_df.columns.tolist() == ['t2']
+
+
+def test_tetracycline(tetracycline_traits):
+    assert tetracycline_traits.columns.tolist() == ['Tetracycline_resistance', 'Bogus_trait']
+    assert len(tetracycline_traits) == 100
+
+
+@pytest.mark.parametrize('method', ['kmeans', 'gaussian'])
+def test_binarize_clearly_bimodal(tmp_path, method):
+    rng = np.random.default_rng(0)
+    low, high = rng.normal(0, .1, 20), rng.normal(10, .1, 20)
+    df = pd.DataFrame({'trait': np.concatenate([low, high])}, index=[f's{i}' for i in range(40)])
+    p = tmp_path / 'numeric.csv'
+    df.to_csv(p)
+
+    numeric_df, traits_df = load_traits(str(p), f'{method}:,', random_state=42)
+    assert numeric_df.shape == (40, 1)
+    binarized = traits_df['trait']
+    # high values must be True, low values False
+    assert binarized.iloc[20:].all()
+    assert not binarized.iloc[:20].any()
+
+
+def test_binarize_tetracycline_numeric():
+    numeric_df, traits_df = load_traits(
+        str(TEST_DATA / 'Tetracycline_resistance_numeric.csv'), 'gaussian:kmeans:,', random_state=42
+    )
+    assert traits_df.index.equals(numeric_df.index)
+    for trait in traits_df.columns:
+        t = traits_df[trait]
+        values = numeric_df[trait]
+        # every True isolate must have a larger value than every False isolate
+        if t.notna().all() and t.any() and not t.all():
+            assert values[t.astype(bool)].min() > values[~t.astype(bool)].max()

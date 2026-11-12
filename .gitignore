@@ -6,3 +6,7 @@ TMP/
 *__pycache__*
 /benchmarking/binarization/simulations/
 /benchmarking/*/.old
+
+# personal, dataset-driven test scripts (not shared)
+tests_local/
+!tests/data/

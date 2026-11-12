@@ -1,105 +1,97 @@
-from init_tests import *
+import pandas as pd
+import pytest
 
-from scoary.scoary import *
+from scoary.ScoaryTree import ScoaryTree
+from conftest import is_equivalent_tree
 
-from scoary.ScoaryTree import *
+TREE = [['A', 'B'], ['C', ['D', 'E']]]
 
 
-class TestTreeFunctions(TestCase):
-    def test_tree_from_list_to_list(self):
-        expected_result = get_json('../data/tetracycline/expected_result.json')['as_list']
-        # convert to ScoaryTree
-        scoary_tree = ScoaryTree.from_list(expected_result)
-        # convert back to list
-        list_tree = scoary_tree.to_list
+def test_list_round_trip():
+    assert ScoaryTree.from_list(TREE).to_list == TREE
 
-        self.assertEqual(expected_result, list_tree)
 
-    def test_tree_from_genes_df(self):
-        """
-        Check if old scoary generates the equivalent tree based on genes presence/absence
-        """
-        _, genes_df = load_genes('../data/tetracycline/Gene_presence_absence.csv', gene_data_type='gene-count', ignore=roary_ignore)
-        # convert to ScoaryTree
-        scoary_tree = ScoaryTree.from_presence_absence(genes_df)
-        # convert to list
-        list_tree = scoary_tree.to_list
-        # compare to Scoary 1
-        expected_result = get_json('../data/tetracycline/expected_result.json')['as_list']
+def test_newick_round_trip():
+    tree = ScoaryTree.from_list(TREE)
+    newick = tree.to_newick()
+    assert newick == '((A,B),(C,(D,E)));'
+    assert ScoaryTree.from_newick(newick).to_list == TREE
 
-        self.assertTrue(is_equivalent_tree(expected_result, list_tree))
 
-    def test_tree_from_newick_to_newick(self):
-        """
-        Check if newick tree is imported correctly
-        """
-        expected_result = get_json('../data/tetracycline/expected_result.json')['as_newick']
-        scoary_tree = ScoaryTree.from_newick(newick=expected_result)
-        newick = scoary_tree.to_newick()
-        self.assertEqual(expected_result, newick)
+def test_labels():
+    assert ScoaryTree.from_list(TREE).labels() == ['A', 'B', 'C', 'D', 'E']
 
-    def test_prune(self):
-        scoary_tree = ScoaryTree.from_list(
-            [[[[[[['1', '2'], ['3', '4']], '5'], '6'], '7'], '8'],
-             [[[[['9', [['10', '11'], '12']], '13'], '14'], '15'], [['16', '17'], [['18', ['19', '20']], '21']]]]
-        )
-        prune_labels = ['1', '2', '3', '18', '19', '21']
-        pruned_tree = scoary_tree.prune(labels=prune_labels)
-        real_labels = pruned_tree.labels()
-        self.assertEqual(real_labels, prune_labels)
 
-    def test_copy(self):
-        scoary_tree = ScoaryTree.from_list(
-            [[[[[[['1', '2'], ['3', '4']], '5'], '6'], '7'], '8'],
-             [[[[['9', [['10', '11'], '12']], '13'], '14'], '15'], [['16', '17'], [['18', ['19', '20']], '21']]]]
-        )
-        copied_tree = scoary_tree.copy_nonrecursive()
-        nonrec_copied_tree = scoary_tree.copy_nonrecursive()
+def test_leaf():
+    leaf = ScoaryTree(label='A')
+    assert leaf.is_leaf
+    assert leaf.labels() == ['A']
 
-        def confirm_copy(t1: ScoaryTree, t2: ScoaryTree):
-            self.assertFalse(t1 is t2)
-            if t1.is_leaf:
-                self.assertTrue(t2.is_leaf)
-                self.assertTrue(t1.label == t2.label)
-            else:
-                self.assertFalse(t2.is_leaf)
-                confirm_copy(t1.left, t2.left)
-                confirm_copy(t1.right, t2.right)
 
-        confirm_copy(scoary_tree, copied_tree)
-        confirm_copy(scoary_tree, nonrec_copied_tree)
-        with self.assertRaises(AssertionError):
-            confirm_copy(scoary_tree, scoary_tree)
+def test_copy_is_deep():
+    tree = ScoaryTree.from_list(TREE)
+    copy = tree.copy()
+    assert copy.to_list == tree.to_list
+    assert copy is not tree
+    assert copy.left is not tree.left
+    assert copy.right.right.left is not tree.right.right.left
 
-    def test_prune_nonrecursive(self):
-        scoary_tree = ScoaryTree.from_list(
-            [[[[[[['1', '2'], ['3', '4']], '5'], '6'], '7'], '8'],
-             [[[[['9', [['10', '11'], '12']], '13'], '14'], '15'], [['16', '17'], [['18', ['19', '20']], '21']]]]
-        )
-        prune_labels = ['1', '2', '3', '18', '19', '21']
-        pruned_tree = scoary_tree.prune_nonrecursive(labels=prune_labels)
-        real_labels = pruned_tree.labels()
-        self.assertEqual(real_labels, prune_labels)
 
-    def test_uniquivy(self):
-        label_to_trait = {'X': True, ' ': False}
+@pytest.mark.parametrize('keep, expected', [
+    (['A', 'B', 'C', 'D', 'E'], TREE),
+    (['A', 'C', 'D', 'E'], ['A', ['C', ['D', 'E']]]),
+    (['A', 'B', 'D'], [['A', 'B'], 'D']),
+    (['B', 'E'], ['B', 'E']),
+])
+def test_prune(keep, expected):
+    tree = ScoaryTree.from_list(TREE)
+    pruned = tree.prune(keep)
+    assert pruned.to_list == expected
+    assert tree.to_list == TREE, 'pruning must not modify the original tree'
 
-        def apply(tree):
-            return ScoaryTree.from_list(tree).uniquify(label_to_trait)
 
-        expected_result = '(((01)1)(01))'
-        for tree in (
-                [['X', ' '], ['X', [' ', 'X']]],
-                [[' ', 'X'], ['X', [' ', 'X']]],
-                [[' ', 'X'], [[' ', 'X'], 'X']],
-                [['X', [' ', 'X']], ['X', ' ']],
-                [['X', ['X', ' ']], ['X', ' ']],
-                [['X', ['X', ' ']], [' ', 'X']],
-        ):
-            unique_string = apply(tree)
-            self.assertEqual(expected_result, unique_string)
+def test_prune_unknown_label_fails():
+    with pytest.raises(AssertionError):
+        ScoaryTree.from_list(TREE).prune(['A', 'B', 'not-in-tree'])
 
-        self.assertNotEqual(
-            expected_result,
-            apply([['X', ' '], ['X', [' ', ' ']]])
-        )
+
+def test_rename():
+    tree = ScoaryTree.from_list(TREE)
+    assert tree.rename(str.lower).labels() == ['a', 'b', 'c', 'd', 'e']
+    assert tree.labels() == ['A', 'B', 'C', 'D', 'E'], 'renaming must not modify the original tree'
+
+
+def test_uniquify_is_order_independent():
+    traits = {'A': True, 'B': False, 'C': True, 'D': False, 'E': True}
+    t1 = ScoaryTree.from_list([['A', 'B'], ['C', ['D', 'E']]])
+    t2 = ScoaryTree.from_list([[['E', 'D'], 'C'], ['B', 'A']])
+    assert t1.uniquify(traits) == t2.uniquify(traits)
+
+
+def test_from_presence_absence_groups_identical_isolates():
+    # A/B and C/D have identical gene content, E is an outlier
+    genes = pd.DataFrame({
+        'A': [1, 1, 0, 0, 1],
+        'B': [1, 1, 0, 0, 1],
+        'C': [0, 0, 1, 1, 1],
+        'D': [0, 0, 1, 1, 1],
+        'E': [1, 0, 1, 0, 0],
+    }).astype(bool)
+    tree = ScoaryTree.from_presence_absence(genes)
+    assert sorted(tree.labels()) == list('ABCDE')
+
+    def find_cherry(t, a, b):
+        if t.is_leaf:
+            return False
+        if t.left.is_leaf and t.right.is_leaf and {t.left.label, t.right.label} == {a, b}:
+            return True
+        return find_cherry(t.left, a, b) or find_cherry(t.right, a, b)
+
+    assert find_cherry(tree, 'A', 'B')
+    assert find_cherry(tree, 'C', 'D')
+
+
+def test_tetracycline_tree(tetracycline_tree_list, tetracycline_genes):
+    tree = ScoaryTree.from_list(tetracycline_tree_list)
+    assert set(tree.labels()) == set(tetracycline_genes.columns)
+    assert is_equivalent_tree(ScoaryTree.from_newick(tree.to_newick()).to_list, tetracycline_tree_list)
